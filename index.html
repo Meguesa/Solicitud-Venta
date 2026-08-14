@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#225b8a">
+  <title>Solicitud de Venta | Jardines de Juan Pablo</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://alcdn.msauth.net/browser/2.39.0/js/msal-browser.min.js"></script>
+</head>
+<body>
+  <main class="page-shell">
+    <section id="loginPanel" class="login-card">
+      <div class="brand-mark">JdJP</div>
+      <p class="eyebrow">Herramienta comercial</p>
+      <h1>Solicitud de Venta</h1>
+      <p id="loginMessage" class="muted">Inicia sesión con tu cuenta empresarial de Jardines de Juan Pablo.</p>
+      <button id="btnLogin" class="primary-button" type="button">Iniciar sesión</button>
+    </section>
+
+    <section id="appPanel" class="app-shell" hidden>
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">Jardines de Juan Pablo</p>
+          <h1>Solicitud de Venta</h1>
+        </div>
+        <div class="user-box">
+          <div>
+            <strong id="userName">Usuario</strong>
+            <span id="userEmail"></span>
+          </div>
+          <button id="btnLogout" class="secondary-button" type="button">Cerrar sesión</button>
+        </div>
+      </header>
+
+      <section class="welcome-card">
+        <span class="status-pill">Acceso validado</span>
+        <h2>Autenticación completada</h2>
+        <p>La estructura inicial de Solicitud de Venta está lista. En el siguiente paso agregaremos la captura digital basada en el formato físico actual.</p>
+      </section>
+    </section>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
