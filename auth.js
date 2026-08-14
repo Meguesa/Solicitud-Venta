@@ -13,8 +13,6 @@ const solicitudVentaMsal = new msal.PublicClientApplication({
 });
 
 async function inicializarAutenticacionSolicitudVenta() {
-  await solicitudVentaMsal.initialize();
-
   const redirectResponse = await solicitudVentaMsal.handleRedirectPromise();
 
   if (redirectResponse?.account) {
