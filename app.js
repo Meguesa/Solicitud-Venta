@@ -12,9 +12,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   loginButton.addEventListener("click", async () => {
     try {
+      loginButton.disabled = true;
+      document.getElementById("loginMessage").textContent = "Abriendo inicio de sesión de Microsoft...";
       await window.solicitudVentaAuth.login();
     } catch (error) {
       console.error("No fue posible iniciar sesion:", error);
+      loginButton.disabled = false;
+      document.getElementById("loginMessage").textContent = formatearErrorAcceso(error);
     }
   });
 
@@ -69,12 +73,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     actualizarSecciones();
     actualizarFinanciamiento();
     recalcularImportes();
+    loginButton.disabled = false;
+    if (!window.solicitudVentaAuth.getUser()) {
+      document.getElementById("loginMessage").textContent =
+        "Inicia sesión con tu cuenta empresarial de Jardines de Juan Pablo.";
+    }
   } catch (error) {
     console.error("No fue posible inicializar la autenticacion:", error);
-    document.getElementById("loginMessage").textContent =
-      "No fue posible inicializar el acceso. Contacta a Sistemas.";
+    loginButton.disabled = false;
+    document.getElementById("loginMessage").textContent = formatearErrorAcceso(error);
   }
 });
+
+function formatearErrorAcceso(error) {
+  const mensaje = String(error?.message || error || "Error desconocido");
+  const codigo = error?.errorCode ? ` [${error.errorCode}]` : "";
+  return `No fue posible inicializar el acceso${codigo}: ${mensaje}`;
+}
 
 function inicializarFecha() {
   const control = document.getElementById("fechaSolicitud");
