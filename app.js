@@ -110,9 +110,13 @@ function copiarUsuarioEnVendedor() {
 function actualizarSecciones() {
   const operacion = document.getElementById("tipoOperacion").value;
   const venta = document.getElementById("tipoVentaProcap").value;
+  const esUsoInmediato = operacion === "USO INMEDIATO" || venta.endsWith(" UI");
+  const esServicio = venta.includes("SERVICIO") || venta.includes("COBERTURA");
 
-  mostrarGrupo("uiSection", operacion === "USO INMEDIATO" || venta.endsWith(" UI"));
-  mostrarGrupo("servicioFields", venta.includes("SERVICIO") || venta.includes("COBERTURA"));
+  mostrarGrupo("finadoFields", esUsoInmediato);
+  mostrarGrupo("sustitutoFields", !esUsoInmediato);
+  mostrarGrupo("servicioFields", esServicio);
+  mostrarGrupo("duracionSection", esServicio);
   mostrarGrupo("propiedadFields", venta.includes("NICHO") || venta.includes("CEMENTERIO"));
   actualizarRequiredVisibles();
 }
@@ -126,7 +130,7 @@ function actualizarFinanciamiento() {
 
 function mostrarGrupo(id, visible) {
   const elemento = document.getElementById(id);
-  elemento.hidden = !visible;
+  if (elemento) elemento.hidden = !visible;
 }
 
 function actualizarRequiredVisibles() {
