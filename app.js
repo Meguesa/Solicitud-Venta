@@ -2,7 +2,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const loginButton = document.getElementById("btnLogin");
   const logoutButton = document.getElementById("btnLogout");
   const form = document.getElementById("solicitudForm");
-  const tipoOperacion = document.getElementById("tipoOperacion");
   const tipoVentaProcap = document.getElementById("tipoVentaProcap");
   const formaPago = document.getElementById("formaPago");
   const fechaNacimiento = document.getElementById("fechaNacimiento");
@@ -30,7 +29,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  tipoOperacion.addEventListener("change", actualizarSecciones);
   tipoVentaProcap.addEventListener("change", actualizarSecciones);
   formaPago.addEventListener("change", actualizarFinanciamiento);
   fechaNacimiento.addEventListener("change", calcularEdad);
@@ -108,16 +106,12 @@ function copiarUsuarioEnVendedor() {
 }
 
 function actualizarSecciones() {
-  const operacion = document.getElementById("tipoOperacion").value;
   const venta = document.getElementById("tipoVentaProcap").value;
-  const esUsoInmediato = operacion === "USO INMEDIATO" || venta.endsWith(" UI");
   const esServicio = venta.includes("SERVICIO") || venta.includes("COBERTURA");
+  const esPropiedad = venta.includes("NICHO") || venta.includes("CEMENTERIO");
 
-  mostrarGrupo("finadoFields", esUsoInmediato);
-  mostrarGrupo("sustitutoFields", !esUsoInmediato);
   mostrarGrupo("servicioFields", esServicio);
-  mostrarGrupo("duracionSection", esServicio);
-  mostrarGrupo("propiedadFields", venta.includes("NICHO") || venta.includes("CEMENTERIO"));
+  mostrarGrupo("propiedadFields", esPropiedad);
   actualizarRequiredVisibles();
 }
 
