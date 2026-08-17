@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const saveButton = asegurarBotonGuardarBorrador();
 
   configurarInformacionLaboral();
+  alinearCatalogosFormulario();
   aplicarEjemplosCampos();
 
   loginButton.addEventListener("click", async () => {
@@ -139,6 +140,18 @@ function configurarInformacionLaboral() {
   }
 }
 
+function alinearCatalogosFormulario() {
+  const escolaridad = document.getElementById("clienteEscolaridad");
+  if (escolaridad) {
+    Array.from(escolaridad.options).forEach((option) => {
+      if (option.value === "OTRA" || option.textContent?.trim() === "OTRA") {
+        option.value = "OTRO";
+        option.textContent = "OTRO";
+      }
+    });
+  }
+}
+
 function ocupacionLaboralSinDetalle() {
   return ["HOGAR", "OTRO", "NO APLICA"].includes(valor("laboralOcupacion"));
 }
@@ -146,20 +159,10 @@ function ocupacionLaboralSinDetalle() {
 function actualizarInformacionLaboral() {
   const omitirDetalle = ocupacionLaboralSinDetalle();
   const idsDetalle = [
-    "laboralEmpresa",
-    "laboralDomicilio",
-    "laboralNumero",
-    "laboralColonia",
-    "laboralEstado",
-    "laboralCp",
-    "laboralCiudad",
-    "laboralMunicipio",
-    "laboralTelefono",
-    "laboralExtension",
-    "laboralActividad",
-    "laboralSector",
-    "laboralAntiguedad",
-    "laboralAntiguedadAnterior"
+    "laboralEmpresa", "laboralDomicilio", "laboralNumero", "laboralColonia",
+    "laboralEstado", "laboralCp", "laboralCiudad", "laboralMunicipio",
+    "laboralTelefono", "laboralExtension", "laboralActividad", "laboralSector",
+    "laboralAntiguedad", "laboralAntiguedadAnterior"
   ];
 
   idsDetalle.forEach((id) => {
@@ -169,10 +172,7 @@ function actualizarInformacionLaboral() {
 
     etiqueta.hidden = omitirDetalle;
     control.required = !omitirDetalle;
-
-    if (omitirDetalle) {
-      control.value = "";
-    }
+    if (omitirDetalle) control.value = "";
   });
 }
 
@@ -247,9 +247,7 @@ function aplicarEjemplosCampos() {
   });
 
   document.querySelectorAll('input[type="text"], input[type="tel"], input[type="email"], textarea').forEach((control) => {
-    if (!control.placeholder && !control.readOnly) {
-      control.placeholder = "Ej. captura la información correspondiente";
-    }
+    if (!control.placeholder && !control.readOnly) control.placeholder = "Ej. captura la información correspondiente";
   });
 }
 
@@ -316,9 +314,7 @@ function actualizarFormularioDinamico() {
   }
 
   const etiquetaPropiedad = propiedadTipo.closest("label");
-  if (etiquetaPropiedad && etiquetaPropiedad.firstChild) {
-    etiquetaPropiedad.firstChild.textContent = "Subtipo";
-  }
+  if (etiquetaPropiedad && etiquetaPropiedad.firstChild) etiquetaPropiedad.firstChild.textContent = "Subtipo";
 
   propiedadTipo.innerHTML = '<option value="">Selecciona</option>';
   if (tipoSolicitud === "LOTE") {
@@ -357,14 +353,14 @@ function agregarOpcion(select, valor) {
 }
 
 function calcularEdadDesde(fechaId, salidaId) {
-  const valor = document.getElementById(fechaId).value;
+  const valorFecha = document.getElementById(fechaId).value;
   const salida = document.getElementById(salidaId);
-  if (!valor) {
+  if (!valorFecha) {
     salida.value = "";
     return;
   }
 
-  const nacimiento = new Date(`${valor}T00:00:00`);
+  const nacimiento = new Date(`${valorFecha}T00:00:00`);
   const hoy = new Date();
   let edad = hoy.getFullYear() - nacimiento.getFullYear();
   const mes = hoy.getMonth() - nacimiento.getMonth();
@@ -471,6 +467,20 @@ function construirPayloadBorrador() {
     sustitutoParentesco: valor("sustitutoParentesco"),
     sustitutoId: valor("sustitutoId"),
 
+    referencia1Nombre: valor("referencia1Nombre"),
+    referencia1Telefono: valor("referencia1Telefono"),
+    referencia1Celular: valor("referencia1Celular"),
+    referencia2Nombre: valor("referencia2Nombre"),
+    referencia2Telefono: valor("referencia2Telefono"),
+    referencia2Celular: valor("referencia2Celular"),
+
+    banco1Nombre: valor("banco1Nombre"),
+    banco1TipoCuenta: valor("banco1TipoCuenta"),
+    banco1NumeroCuenta: valor("banco1NumeroCuenta"),
+    banco2Nombre: valor("banco2Nombre"),
+    banco2TipoCuenta: valor("banco2TipoCuenta"),
+    banco2NumeroCuenta: valor("banco2NumeroCuenta"),
+
     paquete: valor("paquete"),
     descripcionVenta: valor("descripcionVenta"),
     servicioTipo: valor("servicioTipo"),
@@ -530,12 +540,7 @@ async function guardarBorrador() {
     borradorActual.folio = String(resultado.folio || borradorActual.folio || "");
     actualizarFolio(borradorActual.folio);
 
-    mostrarMensaje(
-      borradorActual.itemId
-        ? `Borrador ${borradorActual.folio} guardado correctamente en SharePoint.`
-        : "Borrador guardado correctamente en SharePoint.",
-      "ok"
-    );
+    mostrarMensaje(`Borrador ${borradorActual.folio} guardado correctamente en SharePoint.`, "ok");
   } catch (error) {
     console.error("Error al guardar borrador:", error);
     mostrarMensaje(`No fue posible guardar el borrador: ${error.message || error}`, "error");
@@ -553,62 +558,25 @@ function mostrarMensaje(texto, tipo = "") {
 async function probarBackendSeguro() {
   try {
     mostrarMensaje("Validando conexión segura con el servidor...");
-
     const token = await window.solicitudVentaAuth.getBackendAccessToken();
-
-    if (!token) {
-      return;
-    }
+    if (!token) return;
 
     const response = await fetch("/api/solicitud-venta/borrador.php", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        prueba: true,
-        fecha: new Date().toISOString()
-      })
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ prueba: true, fecha: new Date().toISOString() })
     });
 
-    let resultado;
-
-    try {
-      resultado = await response.json();
-    } catch (error) {
-      throw new Error(
-        `El servidor respondió HTTP ${response.status}, pero no devolvió JSON válido.`
-      );
+    const resultado = await response.json().catch(() => null);
+    if (!response.ok || !resultado?.ok) {
+      throw new Error(resultado?.message || resultado?.error || `HTTP ${response.status}`);
     }
-
-    if (!response.ok || !resultado.ok) {
-      const detalle =
-        resultado?.message ||
-        resultado?.error ||
-        `HTTP ${response.status}`;
-
-      throw new Error(detalle);
-    }
-
-    console.log("Backend Solicitud Venta:", resultado);
 
     const usuario = resultado.usuario || {};
-    const identificacion =
-      usuario.correo ||
-      usuario.nombre ||
-      "usuario autenticado";
-
-    mostrarMensaje(
-      `Conexión segura validada correctamente para ${identificacion}.`,
-      "ok"
-    );
+    const identificacion = usuario.correo || usuario.nombre || "usuario autenticado";
+    mostrarMensaje(`Conexión segura validada correctamente para ${identificacion}.`, "ok");
   } catch (error) {
     console.error("Error al probar backend seguro:", error);
-
-    mostrarMensaje(
-      `No fue posible validar la conexión segura: ${error.message || error}`,
-      "error"
-    );
+    mostrarMensaje(`No fue posible validar la conexión segura: ${error.message || error}`, "error");
   }
 }
