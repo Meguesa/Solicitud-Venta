@@ -8,7 +8,6 @@ window.SOLICITUD_VENTA_CONFIG = {
 };
 
 // Titular Substituto es obligatorio para todos los tipos de solicitud.
-// Se registra despues de app.js para que prevalezca sobre la visibilidad dinamica general.
 document.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => {
     const section = document.getElementById("sustitutoSection");
@@ -24,8 +23,13 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     asegurarSustitutoUniversal();
-
     tipoSolicitud?.addEventListener("change", () => setTimeout(asegurarSustitutoUniversal, 0));
     tipoOperacion?.addEventListener("change", () => setTimeout(asegurarSustitutoUniversal, 0));
   }, 0);
+
+  // Extras se carga despues de app.js para extender el formulario sin alterar su flujo base.
+  const script = document.createElement("script");
+  script.src = "extras.js";
+  script.defer = true;
+  document.body.appendChild(script);
 });
