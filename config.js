@@ -6,3 +6,26 @@ window.SOLICITUD_VENTA_CONFIG = {
     backendScope: "api://444e3a82-f188-4b5e-aa6c-50d8cbcab7b2/SolicitudVenta.Access"
   }
 };
+
+// Titular Substituto es obligatorio para todos los tipos de solicitud.
+// Se registra despues de app.js para que prevalezca sobre la visibilidad dinamica general.
+document.addEventListener("DOMContentLoaded", () => {
+  setTimeout(() => {
+    const section = document.getElementById("sustitutoSection");
+    const tipoSolicitud = document.getElementById("tipoSolicitud");
+    const tipoOperacion = document.getElementById("tipoOperacion");
+
+    const asegurarSustitutoUniversal = () => {
+      if (!section) return;
+      section.hidden = false;
+      section.querySelectorAll("input, select, textarea").forEach((control) => {
+        control.required = true;
+      });
+    };
+
+    asegurarSustitutoUniversal();
+
+    tipoSolicitud?.addEventListener("change", () => setTimeout(asegurarSustitutoUniversal, 0));
+    tipoOperacion?.addEventListener("change", () => setTimeout(asegurarSustitutoUniversal, 0));
+  }, 0);
+});
