@@ -37,14 +37,38 @@
         <div class="form-banner">
           <div>
             <span class="status-pill">Borrador</span>
-            <h2>Solicitud de Compra Servicio Funerario</h2>
-            <p>Captura digital basada en el formato físico actual.</p>
+            <h2 id="tituloSolicitud">Solicitud de Venta</h2>
+            <p>Captura digital basada en los formatos físicos actuales.</p>
           </div>
           <div class="folio-box"><span>Folio</span><strong>PENDIENTE</strong></div>
         </div>
 
         <section class="form-section">
-          <div class="section-title"><span>1</span><div><h3>Referencia</h3><p>Referencia del servicio indicada en la solicitud física.</p></div></div>
+          <div class="section-title"><span>0</span><div><h3>Tipo de solicitud</h3><p>Selecciona primero qué se está vendiendo para mostrar únicamente los campos que correspondan.</p></div></div>
+          <div class="form-grid grid-3">
+            <label>Tipo de solicitud
+              <select id="tipoSolicitud" required>
+                <option value="">Selecciona</option>
+                <option value="SERVICIO">SERVICIO FUNERARIO</option>
+                <option value="LOTE">LOTE</option>
+                <option value="NICHO">NICHO</option>
+              </select>
+            </label>
+            <label>Tipo de operación
+              <select id="tipoOperacion" required>
+                <option value="">Selecciona</option>
+                <option value="PREVISION">PREVISION</option>
+                <option value="USO INMEDIATO">USO INMEDIATO</option>
+              </select>
+            </label>
+            <label>Tipo de venta ProcaP
+              <input id="tipoVentaProcap" type="text" readonly required>
+            </label>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <div class="section-title"><span>1</span><div><h3>Referencia</h3><p>Referencia de la venta indicada en la solicitud física.</p></div></div>
           <div class="form-grid grid-2">
             <label>Referencia<input id="referencia" type="text" required></label>
             <label>Origen de venta<input id="origenVenta" type="text" required></label>
@@ -60,34 +84,46 @@
         </section>
 
         <section class="form-section">
-          <div class="section-title"><span>3</span><div><h3>Información del cliente</h3><p>Datos generales del titular conforme al formato físico.</p></div></div>
+          <div class="section-title"><span>3</span><div><h3>Información del cliente</h3><p>Datos generales del titular conforme a los formatos físicos.</p></div></div>
           <div class="form-grid grid-4">
-            <label>Número de ID<input id="clienteNumeroId" type="text" placeholder="IFE, INE, Seguro Social o Pasaporte" required></label>
+            <label>Tipo de ID<select id="clienteTipoId" required><option value="">Selecciona</option><option>CREDENCIAL DE ELECTOR</option><option>PASAPORTE</option><option>SEGURO SOCIAL</option><option>C.U.R.P.</option><option>LICENCIA</option><option>OTRO</option></select></label>
+            <label>Número de ID<input id="clienteNumeroId" type="text" required></label>
             <label>R.F.C.<input id="clienteRfc" type="text" required></label>
             <label>C.U.R.P.<input id="clienteCurp" type="text" required></label>
-            <label>Edad<input id="edadCliente" type="number" min="0" readonly required></label>
 
             <label>Apellido paterno<input id="clienteApellidoPaterno" type="text" required></label>
             <label>Apellido materno<input id="clienteApellidoMaterno" type="text" required></label>
             <label class="span-2">Nombre<input id="clienteNombres" type="text" required></label>
 
+            <label>Edad<input id="edadCliente" type="number" min="0" readonly required></label>
             <label>Fecha de nacimiento<input id="fechaNacimiento" type="date" required></label>
-            <label>Sexo<select id="clienteSexo" required><option value="">Selecciona</option><option>MASCULINO</option><option>FEMENINO</option></select></label>
+            <label>Sexo<select id="clienteSexo" required><option value="">Selecciona</option><option>MASCULINO</option><option>FEMENINO</option><option>OTRO</option></select></label>
             <label>Estado civil<select id="clienteEstadoCivil" required><option value="">Selecciona</option><option>SOLTERO(A)</option><option>CASADO(A)</option><option>UNION LIBRE</option><option>DIVORCIADO(A)</option><option>VIUDO(A)</option></select></label>
+
+            <label>Nacionalidad<select id="clienteNacionalidad" data-required-when-visible><option value="">Selecciona</option><option>MEXICANA</option><option>EXTRANJERA</option></select></label>
+            <label>Régimen matrimonial<select id="clienteRegimenMatrimonial" data-required-when-visible><option value="">Selecciona</option><option>SEPARADOS</option><option>MANCOMUNADOS</option><option>NO APLICA</option></select></label>
             <label>Vivienda<select id="clienteVivienda" required><option value="">Selecciona</option><option>PROPIA PAGADA</option><option>PROPIA</option><option>RENTADA</option><option>FAMILIAR</option></select></label>
+            <label>Escolaridad<select id="clienteEscolaridad" data-required-when-visible><option value="">Selecciona</option><option>PRIMARIA</option><option>SECUNDARIA</option><option>BACHILLERATO</option><option>TECNICA</option><option>LICENCIATURA</option><option>SIN ESTUDIOS</option><option>OTRA</option></select></label>
 
             <label class="span-2">Domicilio actual<input id="clienteDomicilio" type="text" required></label>
             <label>Número<input id="clienteNumero" type="text" required></label>
             <label>Colonia<input id="clienteColonia" type="text" required></label>
             <label>Provincia / Estado<input id="clienteEstado" type="text" required></label>
             <label>C.P.<input id="clienteCp" type="text" inputmode="numeric" required></label>
+            <label>Ciudad<input id="clienteCiudad" type="text" data-required-when-visible></label>
+            <label>Municipio<input id="clienteMunicipio" type="text" data-required-when-visible></label>
+            <label>Teléfono<input id="clienteTelefono" type="tel" data-required-when-visible></label>
             <label>Celular<input id="clienteCelular" type="tel" required></label>
             <label>Correo electrónico<input id="clienteCorreo" type="email" required></label>
+
+            <label class="span-2">Domicilio anterior<input id="clienteDomicilioAnterior" type="text" data-required-when-visible></label>
+            <label>Antigüedad en domicilio anterior<input id="clienteAntiguedadDomicilioAnterior" type="text" data-required-when-visible></label>
 
             <label>Número de dependientes<input id="clienteDependientes" type="number" min="0" required></label>
             <label class="span-2">Edades de dependientes<input id="clienteEdadesDependientes" type="text" placeholder="Ej. 5, 9, 14" required></label>
             <label>Cónyuge<input id="clienteConyuge" type="text" required></label>
-            <label>Edad cónyuge<input id="clienteConyugeEdad" type="number" min="0" required></label>
+            <label>Fecha nacimiento cónyuge<input id="clienteConyugeFechaNacimiento" type="date"></label>
+            <label>Edad cónyuge<input id="clienteConyugeEdad" type="number" min="0" readonly></label>
           </div>
         </section>
 
@@ -95,7 +131,7 @@
           <div class="section-title"><span>4</span><div><h3>Información Laboral</h3><p>Datos laborales del titular.</p></div></div>
           <div class="form-grid grid-4">
             <label>Empresa actual<input id="laboralEmpresa" type="text" required></label>
-            <label>Ocupación<input id="laboralOcupacion" type="text" required></label>
+            <label>Ocupación<select id="laboralOcupacion" required><option value="">Selecciona</option><option>DIRECTIVO</option><option>FUNCIONARIO</option><option>EMPLEADO</option><option>PROFESIONISTA INDEPENDIENTE</option><option>JUBILADO/PENSIONADO</option><option>OTRO</option></select></label>
             <label class="span-2">Domicilio laboral<input id="laboralDomicilio" type="text" required></label>
             <label>Número<input id="laboralNumero" type="text" required></label>
             <label>Colonia<input id="laboralColonia" type="text" required></label>
@@ -107,51 +143,73 @@
             <label>Ext.<input id="laboralExtension" type="text" required></label>
             <label>Actividad en la empresa<input id="laboralActividad" type="text" required></label>
             <label>Sector<select id="laboralSector" required><option value="">Selecciona</option><option>PUBLICO</option><option>PRIVADO</option><option>INDEPENDIENTE</option><option>OTRO</option></select></label>
-            <label class="span-2">Antigüedad en su empleo actual<input id="laboralAntiguedad" type="text" required></label>
+            <label>Antigüedad en su empleo actual<input id="laboralAntiguedad" type="text" required></label>
+            <label>Antigüedad en su empleo anterior<input id="laboralAntiguedadAnterior" type="text" data-required-when-visible></label>
           </div>
         </section>
 
-        <section class="form-section">
+        <section id="sustitutoSection" class="form-section">
           <div class="section-title"><span>5</span><div><h3>Datos Titular Substituto</h3><p>Datos de la persona designada como titular substituto.</p></div></div>
           <div class="form-grid grid-3">
-            <label>Nombre<input id="sustitutoNombre" type="text" required></label>
-            <label>Domicilio<input id="sustitutoDomicilio" type="text" required></label>
-            <label>Edad<input id="sustitutoEdad" type="number" min="0" required></label>
-            <label>Teléfono<input id="sustitutoTelefono" type="tel" required></label>
-            <label>Parentesco<input id="sustitutoParentesco" type="text" required></label>
-            <label>I.D.<input id="sustitutoId" type="text" required></label>
+            <label>Nombre<input id="sustitutoNombre" type="text" data-required-when-visible></label>
+            <label>Domicilio<input id="sustitutoDomicilio" type="text" data-required-when-visible></label>
+            <label>Edad<input id="sustitutoEdad" type="number" min="0" data-required-when-visible></label>
+            <label>Teléfono<input id="sustitutoTelefono" type="tel" data-required-when-visible></label>
+            <label>Parentesco<input id="sustitutoParentesco" type="text" data-required-when-visible></label>
+            <label>I.D.<input id="sustitutoId" type="text" data-required-when-visible></label>
+          </div>
+        </section>
+
+        <section id="referenciasSection" class="form-section" hidden>
+          <div class="section-title"><span>6</span><div><h3>Referencias Familiares</h3><p>Dos referencias familiares con distinto domicilio.</p></div></div>
+          <div class="form-grid grid-3">
+            <label>Referencia 1 · Nombre<input id="referencia1Nombre" type="text" data-required-when-visible></label>
+            <label>Teléfono<input id="referencia1Telefono" type="tel" data-required-when-visible></label>
+            <label>Celular<input id="referencia1Celular" type="tel" data-required-when-visible></label>
+            <label>Referencia 2 · Nombre<input id="referencia2Nombre" type="text" data-required-when-visible></label>
+            <label>Teléfono<input id="referencia2Telefono" type="tel" data-required-when-visible></label>
+            <label>Celular<input id="referencia2Celular" type="tel" data-required-when-visible></label>
+          </div>
+        </section>
+
+        <section id="financieraSection" class="form-section" hidden>
+          <div class="section-title"><span>7</span><div><h3>Información Financiera y de Crédito</h3><p>Referencias bancarias para ventas de lote o nicho.</p></div></div>
+          <div class="form-grid grid-3">
+            <label>Banco 1 · Nombre<input id="banco1Nombre" type="text" data-required-when-visible></label>
+            <label>Tipo de cuenta<input id="banco1TipoCuenta" type="text" data-required-when-visible></label>
+            <label>Número de cuenta<input id="banco1NumeroCuenta" type="text" data-required-when-visible></label>
+            <label>Banco 2 · Nombre<input id="banco2Nombre" type="text" data-required-when-visible></label>
+            <label>Tipo de cuenta<input id="banco2TipoCuenta" type="text" data-required-when-visible></label>
+            <label>Número de cuenta<input id="banco2NumeroCuenta" type="text" data-required-when-visible></label>
           </div>
         </section>
 
         <section class="form-section">
-          <div class="section-title"><span>6</span><div><h3>Información de Servicio</h3><p>Datos del servicio, producto o propiedad contratada.</p></div></div>
+          <div class="section-title"><span>8</span><div><h3>Información de la Venta</h3><p id="ventaDescripcion">Selecciona el tipo de solicitud para capturar la información correspondiente.</p></div></div>
 
-          <div class="form-grid grid-3">
-            <label>Tipo de operación<select id="tipoOperacion" required><option value="">Selecciona</option><option value="PREVISION">PREVISION</option><option value="USO INMEDIATO">USO INMEDIATO</option></select></label>
-            <label>Tipo de venta ProcaP<select id="tipoVentaProcap" required><option value="">Selecciona</option><option>SERVICIO PREVISION</option><option>NICHO PREVISION</option><option>CEMENTERIO PREVISION</option><option>COBERTURA FUNERARIA</option><option>SERVICIO UI</option><option>NICHO UI</option><option>CEMENTERIO UI</option></select></label>
-            <label>Paquete<input id="paquete" type="text" required></label>
+          <div class="form-grid grid-2">
+            <label>Paquete / Plan<input id="paquete" type="text" required></label>
+            <label>Descripción de la venta<textarea id="descripcionVenta" rows="3" required></textarea></label>
           </div>
 
           <div id="servicioFields" class="form-grid grid-4 conditional-group" hidden>
-            <label>Servicio funerario<select id="servicioTipo" data-required-when-visible><option value="">Selecciona</option><option>VELACION E INHUMACION</option><option>VELACION Y CREMACION</option><option>CREMACION DIRECTA</option><option>OTRO</option></select></label>
+            <label>Servicio funerario<select id="servicioTipo" data-required-when-visible><option value="">Selecciona</option><option>VELACION E INHUMACION</option><option>VELACION Y CREMACION</option><option>CREMACION DIRECTA</option><option>INHUMACION DIRECTA</option><option>RENTA DE CAPILLA</option><option>TRASLADO</option><option>OTRO</option></select></label>
             <label>Tipo de ataúd<input id="servicioAtaud" type="text" data-required-when-visible></label>
             <label>Urna<input id="servicioUrna" type="text" data-required-when-visible></label>
             <label>Duración del servicio<input id="servicioDuracion" type="text" data-required-when-visible></label>
           </div>
 
           <div id="propiedadFields" class="form-grid grid-4 conditional-group" hidden>
-            <label>Tipo de propiedad<select id="propiedadTipo" data-required-when-visible><option value="">Selecciona</option><option>LOTE</option><option>NICHO</option><option>VIP</option><option>OTRO</option></select></label>
+            <label>Tipo / subtipo<select id="propiedadTipo" data-required-when-visible><option value="">Selecciona</option></select></label>
             <label>Sección<input id="propiedadSeccion" type="text" data-required-when-visible></label>
             <label>Manzana<input id="propiedadManzana" type="text" data-required-when-visible></label>
             <label>Número<input id="propiedadNumero" type="text" data-required-when-visible></label>
             <label>Clave de propiedad<input id="propiedadClave" type="text" data-required-when-visible></label>
           </div>
-
-          <label>Descripción de la venta<textarea id="descripcionVenta" rows="3" required></textarea></label>
         </section>
 
         <section class="form-section">
-          <div class="section-title"><span>7</span><div><h3>Importe y Forma de Pago</h3><p>Condiciones económicas de la solicitud.</p></div></div>
+          <div class="section-title"><span>9</span><div><h3>Importe y Forma de Pago</h3><p>Condiciones económicas de la solicitud.</p></div></div>
           <div class="form-grid grid-4">
             <label>Forma de pago<select id="formaPago" required><option value="">Selecciona</option><option>CONTADO</option><option>CREDITO</option></select></label>
             <label>Precio total<input id="precioTotal" type="number" min="0" step="0.01" required></label>
