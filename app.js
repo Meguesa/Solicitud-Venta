@@ -76,6 +76,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     actualizarFinanciamiento();
     recalcularImportes();
     loginButton.disabled = false;
+    
+    if (window.solicitudVentaAuth.getUser()) {
+      await probarBackendSeguro();
+    }
+    
     if (!window.solicitudVentaAuth.getUser()) {
       document.getElementById("loginMessage").textContent =
         "Inicia sesión con tu cuenta empresarial de Jardines de Juan Pablo.";
@@ -219,4 +224,68 @@ function mostrarMensaje(texto, tipo = "") {
   const mensaje = document.getElementById("formMessage");
   mensaje.textContent = texto;
   mensaje.className = `form-message ${tipo}`.trim();
+}
+
+async function probarBackendSeguro() {
+  try {
+    mostrarMensaje("Validando conexión segura con el servidor...");
+
+    const token = await window.solicitudVentaAuth.getBackendAccessToken();
+
+    if (!token) {
+      // MSAL pudo haber iniciado un redirect para solicitar consentimiento.
+      return;
+    }
+
+    const response = await fetch("/api/solicitud-venta/borrador.php", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        prueba: true,
+        fecha: new Date().toISOString()
+      })
+    });
+
+    let resultado;
+
+    try {
+      resultado = await response.json();
+    } catch (error) {
+      throw new Error(
+        `El servidor respondió HTTP ${response.status}, pero no devolvió JSON válido.`
+      );
+    }
+
+    if (!response.ok || !resultado.ok) {
+      const detalle =
+        resultado?.message ||
+        resultado?.error ||
+        `HTTP ${response.status}`;
+
+      throw new Error(detalle);
+    }
+
+    console.log("Backend Solicitud Venta:", resultado);
+
+    const usuario = resultado.usuario || {};
+    const identificacion =
+      usuario.correo ||
+      usuario.nombre ||
+      "usuario autenticado";
+
+    mostrarMensaje(
+      `Conexión segura validada correctamente para ${identificacion}.`,
+      "ok"
+    );
+  } catch (error) {
+    console.error("Error al probar backend seguro:", error);
+
+    mostrarMensaje(
+      `No fue posible validar la conexión segura: ${error.message || error}`,
+      "error"
+    );
+  }
 }
