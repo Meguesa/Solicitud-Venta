@@ -468,7 +468,30 @@ function construirPayloadBorrador() {
     sustitutoEdad: numeroValor("sustitutoEdad"),
     sustitutoTelefono: valor("sustitutoTelefono"),
     sustitutoParentesco: valor("sustitutoParentesco"),
-    sustitutoId: valor("sustitutoId")
+    sustitutoId: valor("sustitutoId"),
+
+    paquete: valor("paquete"),
+    descripcionVenta: valor("descripcionVenta"),
+    servicioTipo: valor("servicioTipo"),
+    servicioAtaud: valor("servicioAtaud"),
+    servicioUrna: valor("servicioUrna"),
+    servicioDuracion: valor("servicioDuracion"),
+    propiedadTipo: valor("propiedadTipo"),
+    propiedadSeccion: valor("propiedadSeccion"),
+    propiedadManzana: valor("propiedadManzana"),
+    propiedadNumero: valor("propiedadNumero"),
+    propiedadClave: valor("propiedadClave"),
+
+    formaPago: valor("formaPago"),
+    precioTotal: numeroValor("precioTotal"),
+    enganche: numeroValor("enganche"),
+    saldo: numeroValor("saldo"),
+    metodoPago: valor("metodoPago"),
+    mensualidades: numeroValor("mensualidades"),
+    importeMensual: numeroValor("importeMensual"),
+    diaPago: numeroValor("diaPago"),
+    fechaPrimerVencimiento: valor("fechaPrimerVencimiento"),
+    conformidadFinanciamiento: Boolean(document.getElementById("conformidadFinanciamiento")?.checked)
   };
 }
 
