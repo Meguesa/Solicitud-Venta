@@ -2,9 +2,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   const loginButton = document.getElementById("btnLogin");
   const logoutButton = document.getElementById("btnLogout");
   const form = document.getElementById("solicitudForm");
-  const tipoVentaProcap = document.getElementById("tipoVentaProcap");
+  const tipoSolicitud = document.getElementById("tipoSolicitud");
+  const tipoOperacion = document.getElementById("tipoOperacion");
   const formaPago = document.getElementById("formaPago");
   const fechaNacimiento = document.getElementById("fechaNacimiento");
+  const fechaNacimientoConyuge = document.getElementById("clienteConyugeFechaNacimiento");
   const precioTotal = document.getElementById("precioTotal");
   const enganche = document.getElementById("enganche");
   const mensualidades = document.getElementById("mensualidades");
@@ -29,9 +31,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  tipoVentaProcap.addEventListener("change", actualizarSecciones);
+  tipoSolicitud.addEventListener("change", actualizarFormularioDinamico);
+  tipoOperacion.addEventListener("change", actualizarFormularioDinamico);
   formaPago.addEventListener("change", actualizarFinanciamiento);
-  fechaNacimiento.addEventListener("change", calcularEdad);
+  fechaNacimiento.addEventListener("change", () => calcularEdadDesde("fechaNacimiento", "edadCliente"));
+  fechaNacimientoConyuge.addEventListener("change", () => calcularEdadDesde("clienteConyugeFechaNacimiento", "clienteConyugeEdad"));
   precioTotal.addEventListener("input", recalcularImportes);
   enganche.addEventListener("input", recalcularImportes);
   mensualidades.addEventListener("input", recalcularImportes);
@@ -40,7 +44,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     form.reset();
     inicializarFecha();
     copiarUsuarioEnVendedor();
-    actualizarSecciones();
+    actualizarFormularioDinamico();
     actualizarFinanciamiento();
     recalcularImportes();
     mostrarMensaje("Formulario limpiado. Esta versión aún no guarda información en SharePoint.");
@@ -68,7 +72,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await window.solicitudVentaAuth.initialize();
     inicializarFecha();
     copiarUsuarioEnVendedor();
-    actualizarSecciones();
+    actualizarFormularioDinamico();
     actualizarFinanciamiento();
     recalcularImportes();
     loginButton.disabled = false;
@@ -105,13 +109,57 @@ function copiarUsuarioEnVendedor() {
   document.getElementById("vendedorCorreo").value = correo;
 }
 
-function actualizarSecciones() {
-  const venta = document.getElementById("tipoVentaProcap").value;
-  const esServicio = venta.includes("SERVICIO") || venta.includes("COBERTURA");
-  const esPropiedad = venta.includes("NICHO") || venta.includes("CEMENTERIO");
+function actualizarFormularioDinamico() {
+  const tipoSolicitud = document.getElementById("tipoSolicitud").value;
+  const tipoOperacion = document.getElementById("tipoOperacion").value;
+  const tipoVentaProcap = document.getElementById("tipoVentaProcap");
+  const propiedadTipo = document.getElementById("propiedadTipo");
+  const titulo = document.getElementById("tituloSolicitud");
+  const descripcion = document.getElementById("ventaDescripcion");
+
+  let ventaProcap = "";
+  if (tipoSolicitud === "SERVICIO" && tipoOperacion === "PREVISION") ventaProcap = "SERVICIO PREVISION";
+  if (tipoSolicitud === "SERVICIO" && tipoOperacion === "USO INMEDIATO") ventaProcap = "SERVICIO UI";
+  if (tipoSolicitud === "LOTE" && tipoOperacion === "PREVISION") ventaProcap = "CEMENTERIO PREVISION";
+  if (tipoSolicitud === "LOTE" && tipoOperacion === "USO INMEDIATO") ventaProcap = "CEMENTERIO UI";
+  if (tipoSolicitud === "NICHO" && tipoOperacion === "PREVISION") ventaProcap = "NICHO PREVISION";
+  if (tipoSolicitud === "NICHO" && tipoOperacion === "USO INMEDIATO") ventaProcap = "NICHO UI";
+  tipoVentaProcap.value = ventaProcap;
+
+  const esServicio = tipoSolicitud === "SERVICIO";
+  const esPropiedad = tipoSolicitud === "LOTE" || tipoSolicitud === "NICHO";
 
   mostrarGrupo("servicioFields", esServicio);
   mostrarGrupo("propiedadFields", esPropiedad);
+  mostrarGrupo("referenciasSection", esPropiedad);
+  mostrarGrupo("financieraSection", esPropiedad);
+  mostrarGrupo("sustitutoSection", esServicio);
+
+  if (tipoSolicitud === "SERVICIO") {
+    titulo.textContent = "Solicitud de Compra Servicio Funerario";
+    descripcion.textContent = "Datos del servicio funerario contratado.";
+  } else if (tipoSolicitud === "LOTE") {
+    titulo.textContent = "Solicitud de Compra Lote Funerario";
+    descripcion.textContent = "Datos del lote contratado.";
+  } else if (tipoSolicitud === "NICHO") {
+    titulo.textContent = "Solicitud de Compra Nicho";
+    descripcion.textContent = "Datos del nicho contratado.";
+  } else {
+    titulo.textContent = "Solicitud de Venta";
+    descripcion.textContent = "Selecciona el tipo de solicitud para capturar la información correspondiente.";
+  }
+
+  propiedadTipo.innerHTML = '<option value="">Selecciona</option>';
+  if (tipoSolicitud === "LOTE") {
+    agregarOpcion(propiedadTipo, "JARDIN");
+    agregarOpcion(propiedadTipo, "VIP");
+    agregarOpcion(propiedadTipo, "OSARIOS");
+  } else if (tipoSolicitud === "NICHO") {
+    agregarOpcion(propiedadTipo, "NICHO");
+    agregarOpcion(propiedadTipo, "OSARIO");
+    agregarOpcion(propiedadTipo, "OTRO");
+  }
+
   actualizarRequiredVisibles();
 }
 
@@ -134,9 +182,16 @@ function actualizarRequiredVisibles() {
   });
 }
 
-function calcularEdad() {
-  const valor = document.getElementById("fechaNacimiento").value;
-  const salida = document.getElementById("edadCliente");
+function agregarOpcion(select, valor) {
+  const opcion = document.createElement("option");
+  opcion.value = valor;
+  opcion.textContent = valor;
+  select.appendChild(opcion);
+}
+
+function calcularEdadDesde(fechaId, salidaId) {
+  const valor = document.getElementById(fechaId).value;
+  const salida = document.getElementById(salidaId);
   if (!valor) {
     salida.value = "";
     return;
