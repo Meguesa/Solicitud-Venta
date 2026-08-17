@@ -23,9 +23,11 @@ button { cursor: pointer; }
 h1,h2,h3,p { margin-top: 0; }
 h1 { margin-bottom: 10px; color: var(--jp-brown); }
 .muted { margin-bottom: 26px; color: var(--jp-muted); line-height: 1.55; }
-.primary-button,.secondary-button { min-height: 42px; padding: 0 17px; border-radius: 8px; font-weight: 800; }
+.primary-button,.secondary-button,.draft-button { min-height: 42px; padding: 0 17px; border-radius: 8px; font-weight: 800; }
 .primary-button { color: var(--jp-brown); background: var(--jp-gold); border: 1px solid var(--jp-gold); }
 .secondary-button { color: var(--jp-brown); background: #fff; border: 1px solid #d9ccc5; }
+.draft-button { color: var(--jp-blue-dark); background: #eef5fb; border: 1px solid #b9d0e3; }
+.primary-button:disabled,.secondary-button:disabled,.draft-button:disabled { cursor: wait; opacity:.65; }
 .login-card .primary-button { width: 100%; min-height: 48px; }
 .app-shell { width: 100%; }
 .app-header { margin-bottom: 18px; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; gap: 18px; background: #fff; border: 1px solid var(--jp-border); border-radius: 14px; box-shadow: var(--jp-shadow); }
@@ -56,6 +58,7 @@ h1 { margin-bottom: 10px; color: var(--jp-brown); }
 .span-2 { grid-column:span 2; }
 label { display:flex; flex-direction:column; gap:6px; color:var(--jp-brown); font-size:12px; font-weight:700; }
 input,select,textarea { width:100%; min-height:42px; padding:9px 11px; color:var(--jp-text); background:#fff; border:1px solid #d9d2ca; border-radius:8px; outline:none; }
+input::placeholder,textarea::placeholder { color:#aaa29b; opacity:1; font-weight:400; }
 textarea { min-height:76px; resize:vertical; }
 input:focus,select:focus,textarea:focus { border-color:var(--jp-blue); box-shadow:0 0 0 3px rgba(34,91,138,.10); }
 input[readonly] { background:#f5f2ed; color:#5f5751; }
@@ -88,6 +91,6 @@ input[readonly] { background:#f5f2ed; color:#5f5751; }
   .form-banner { padding:18px 16px; }
   .folio-box { width:100%; }
   .form-actions { position:static; }
-  .form-actions > div { display:grid; grid-template-columns:1fr 1fr; }
-  .inline-button,.secondary-button { width:100%; }
+  .form-actions > div { display:grid; grid-template-columns:1fr; }
+  .inline-button,.secondary-button,.draft-button { width:100%; }
 }
