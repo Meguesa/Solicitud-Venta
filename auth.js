@@ -66,10 +66,13 @@ async function inicializarAutenticacionSolicitudVenta() {
 
 async function iniciarSesionSolicitudVenta() {
   const instancia = await obtenerInstanciaMsal();
+  const scopes = ["openid", "profile", "email"];
 
-  await instancia.loginRedirect({
-    scopes: ["openid", "profile", "email"]
-  });
+  if (solicitudVentaConfig?.msal?.backendScope) {
+    scopes.push(solicitudVentaConfig.msal.backendScope);
+  }
+
+  await instancia.loginRedirect({ scopes });
 }
 
 async function cerrarSesionSolicitudVenta() {
@@ -84,6 +87,37 @@ async function cerrarSesionSolicitudVenta() {
 
 function obtenerUsuarioSolicitudVenta() {
   return solicitudVentaMsal?.getActiveAccount() || null;
+}
+
+async function obtenerAccessTokenBackend() {
+  const instancia = await obtenerInstanciaMsal();
+  const account = instancia.getActiveAccount();
+  const backendScope = solicitudVentaConfig?.msal?.backendScope;
+
+  if (!account) {
+    throw new Error("No hay un usuario autenticado.");
+  }
+
+  if (!backendScope) {
+    throw new Error("No se configuro el scope del backend de Solicitud de Venta.");
+  }
+
+  const request = {
+    account,
+    scopes: [backendScope]
+  };
+
+  try {
+    const response = await instancia.acquireTokenSilent(request);
+    return response.accessToken;
+  } catch (error) {
+    if (error instanceof window.msal.InteractionRequiredAuthError) {
+      await instancia.acquireTokenRedirect(request);
+      return null;
+    }
+
+    throw error;
+  }
 }
 
 function renderEstadoSesion() {
@@ -109,5 +143,6 @@ window.solicitudVentaAuth = {
   initialize: inicializarAutenticacionSolicitudVenta,
   login: iniciarSesionSolicitudVenta,
   logout: cerrarSesionSolicitudVenta,
-  getUser: obtenerUsuarioSolicitudVenta
+  getUser: obtenerUsuarioSolicitudVenta,
+  getBackendAccessToken: obtenerAccessTokenBackend
 };
