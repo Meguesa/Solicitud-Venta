@@ -44,7 +44,15 @@
         </div>
 
         <section class="form-section">
-          <div class="section-title"><span>1</span><div><h3>General</h3><p>Lugar y fecha de la solicitud.</p></div></div>
+          <div class="section-title"><span>1</span><div><h3>Referencia</h3><p>Referencia del servicio indicada en la solicitud física.</p></div></div>
+          <div class="form-grid grid-2">
+            <label>Referencia<input id="referencia" type="text" required></label>
+            <label>Origen de venta<input id="origenVenta" type="text" required></label>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <div class="section-title"><span>2</span><div><h3>General</h3><p>Lugar y fecha de la solicitud.</p></div></div>
           <div class="form-grid grid-2">
             <label>Lugar<select id="lugar" required><option value="">Selecciona</option><option>CHURUBUSCO</option><option>AGUA FRIA</option><option>PARQUE</option></select></label>
             <label>Fecha<input id="fechaSolicitud" type="date" required></label>
@@ -52,7 +60,7 @@
         </section>
 
         <section class="form-section">
-          <div class="section-title"><span>2</span><div><h3>Información del cliente</h3><p>Datos generales del titular conforme al formato físico.</p></div></div>
+          <div class="section-title"><span>3</span><div><h3>Información del cliente</h3><p>Datos generales del titular conforme al formato físico.</p></div></div>
           <div class="form-grid grid-4">
             <label>Número de ID<input id="clienteNumeroId" type="text" placeholder="IFE, INE, Seguro Social o Pasaporte" required></label>
             <label>R.F.C.<input id="clienteRfc" type="text" required></label>
@@ -84,7 +92,7 @@
         </section>
 
         <section class="form-section">
-          <div class="section-title"><span>3</span><div><h3>Información Laboral</h3><p>Datos laborales del titular.</p></div></div>
+          <div class="section-title"><span>4</span><div><h3>Información Laboral</h3><p>Datos laborales del titular.</p></div></div>
           <div class="form-grid grid-4">
             <label>Empresa actual<input id="laboralEmpresa" type="text" required></label>
             <label>Ocupación<input id="laboralOcupacion" type="text" required></label>
@@ -104,7 +112,7 @@
         </section>
 
         <section class="form-section">
-          <div class="section-title"><span>4</span><div><h3>Datos Titular Substituto</h3><p>Datos de la persona designada como titular substituto.</p></div></div>
+          <div class="section-title"><span>5</span><div><h3>Datos Titular Substituto</h3><p>Datos de la persona designada como titular substituto.</p></div></div>
           <div class="form-grid grid-3">
             <label>Nombre<input id="sustitutoNombre" type="text" required></label>
             <label>Domicilio<input id="sustitutoDomicilio" type="text" required></label>
@@ -116,7 +124,7 @@
         </section>
 
         <section class="form-section">
-          <div class="section-title"><span>5</span><div><h3>Información de Servicio</h3><p>Datos del servicio, producto o propiedad contratada.</p></div></div>
+          <div class="section-title"><span>6</span><div><h3>Información de Servicio</h3><p>Datos del servicio, producto o propiedad contratada.</p></div></div>
 
           <div class="form-grid grid-3">
             <label>Tipo de operación<select id="tipoOperacion" required><option value="">Selecciona</option><option value="PREVISION">PREVISION</option><option value="USO INMEDIATO">USO INMEDIATO</option></select></label>
@@ -143,7 +151,7 @@
         </section>
 
         <section class="form-section">
-          <div class="section-title"><span>6</span><div><h3>Importe y Forma de Pago</h3><p>Condiciones económicas de la solicitud.</p></div></div>
+          <div class="section-title"><span>7</span><div><h3>Importe y Forma de Pago</h3><p>Condiciones económicas de la solicitud.</p></div></div>
           <div class="form-grid grid-4">
             <label>Forma de pago<select id="formaPago" required><option value="">Selecciona</option><option>CONTADO</option><option>CREDITO</option></select></label>
             <label>Precio total<input id="precioTotal" type="number" min="0" step="0.01" required></label>
