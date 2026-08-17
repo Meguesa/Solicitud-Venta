@@ -1,3 +1,8 @@
+let borradorActual = {
+  itemId: "",
+  folio: ""
+};
+
 document.addEventListener("DOMContentLoaded", async () => {
   const loginButton = document.getElementById("btnLogin");
   const logoutButton = document.getElementById("btnLogout");
@@ -46,6 +51,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("btnReset").addEventListener("click", () => {
     form.reset();
+    borradorActual = { itemId: "", folio: "" };
     inicializarFecha();
     copiarUsuarioEnVendedor();
     actualizarFormularioDinamico();
@@ -335,7 +341,7 @@ async function guardarBorrador() {
 
   try {
     saveButton.disabled = true;
-    mostrarMensaje("Guardando borrador en SharePoint...");
+    mostrarMensaje(borradorActual.itemId ? "Actualizando borrador en SharePoint..." : "Guardando borrador en SharePoint...");
 
     const token = await window.solicitudVentaAuth.getBackendAccessToken();
     if (!token) return;
@@ -348,6 +354,8 @@ async function guardarBorrador() {
       },
       body: JSON.stringify({
         accion: "guardar_borrador",
+        itemId: borradorActual.itemId,
+        folio: borradorActual.folio,
         tipoSolicitud,
         tipoOperacion,
         tipoVentaProcap,
@@ -362,8 +370,16 @@ async function guardarBorrador() {
       throw new Error(resultado?.message || resultado?.error || `HTTP ${response.status}`);
     }
 
-    actualizarFolio(resultado.folio);
-    mostrarMensaje(`Borrador ${resultado.folio} guardado correctamente en SharePoint.`, "ok");
+    borradorActual.itemId = String(resultado.itemId || borradorActual.itemId || "");
+    borradorActual.folio = String(resultado.folio || borradorActual.folio || "");
+    actualizarFolio(borradorActual.folio);
+
+    mostrarMensaje(
+      borradorActual.itemId
+        ? `Borrador ${borradorActual.folio} guardado correctamente en SharePoint.`
+        : "Borrador guardado correctamente en SharePoint.",
+      "ok"
+    );
   } catch (error) {
     console.error("Error al guardar borrador:", error);
     mostrarMensaje(`No fue posible guardar el borrador: ${error.message || error}`, "error");
