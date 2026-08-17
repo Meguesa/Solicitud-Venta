@@ -315,15 +315,16 @@ function actualizarFormularioDinamico() {
     descripcion.textContent = "Selecciona el tipo de solicitud para capturar la información correspondiente.";
   }
 
+  const etiquetaPropiedad = propiedadTipo.closest("label");
+  if (etiquetaPropiedad && etiquetaPropiedad.firstChild) {
+    etiquetaPropiedad.firstChild.textContent = "Subtipo";
+  }
+
   propiedadTipo.innerHTML = '<option value="">Selecciona</option>';
   if (tipoSolicitud === "LOTE") {
-    agregarOpcion(propiedadTipo, "JARDIN");
-    agregarOpcion(propiedadTipo, "VIP");
-    agregarOpcion(propiedadTipo, "OSARIOS");
+    ["BRONCE", "ORO", "PLATA", "PLATINO", "SJV", "SMV", "SPV"].forEach((subtipo) => agregarOpcion(propiedadTipo, subtipo));
   } else if (tipoSolicitud === "NICHO") {
-    agregarOpcion(propiedadTipo, "NICHO");
-    agregarOpcion(propiedadTipo, "OSARIO");
-    agregarOpcion(propiedadTipo, "OTRO");
+    ["PLN", "SPN"].forEach((subtipo) => agregarOpcion(propiedadTipo, subtipo));
   }
 
   actualizarRequiredVisibles();
