@@ -327,14 +327,95 @@ function actualizarFolio(folio) {
   if (control) control.textContent = folio || "PENDIENTE";
 }
 
+function valor(id) {
+  const control = document.getElementById(id);
+  if (!control) return "";
+  return String(control.value ?? "").trim();
+}
+
+function numeroValor(id) {
+  const texto = valor(id);
+  if (texto === "") return null;
+  const numero = Number(texto);
+  return Number.isFinite(numero) ? numero : null;
+}
+
+function construirPayloadBorrador() {
+  return {
+    accion: "guardar_borrador",
+    itemId: borradorActual.itemId,
+    folio: borradorActual.folio,
+    tipoSolicitud: valor("tipoSolicitud"),
+    tipoOperacion: valor("tipoOperacion"),
+    tipoVentaProcap: valor("tipoVentaProcap"),
+    fechaSolicitud: valor("fechaSolicitud"),
+    referencia: valor("referencia"),
+    origenVenta: valor("origenVenta"),
+    lugar: valor("lugar"),
+
+    clienteTipoId: valor("clienteTipoId"),
+    clienteNumeroId: valor("clienteNumeroId"),
+    clienteRfc: valor("clienteRfc"),
+    clienteCurp: valor("clienteCurp"),
+    clienteApellidoPaterno: valor("clienteApellidoPaterno"),
+    clienteApellidoMaterno: valor("clienteApellidoMaterno"),
+    clienteNombres: valor("clienteNombres"),
+    clienteEdad: numeroValor("edadCliente"),
+    clienteFechaNacimiento: valor("fechaNacimiento"),
+    clienteSexo: valor("clienteSexo"),
+    clienteEstadoCivil: valor("clienteEstadoCivil"),
+    clienteNacionalidad: valor("clienteNacionalidad"),
+    clienteRegimenMatrimonial: valor("clienteRegimenMatrimonial"),
+    clienteVivienda: valor("clienteVivienda"),
+    clienteEscolaridad: valor("clienteEscolaridad"),
+    clienteDomicilio: valor("clienteDomicilio"),
+    clienteNumero: valor("clienteNumero"),
+    clienteColonia: valor("clienteColonia"),
+    clienteEstado: valor("clienteEstado"),
+    clienteCp: valor("clienteCp"),
+    clienteCiudad: valor("clienteCiudad"),
+    clienteMunicipio: valor("clienteMunicipio"),
+    clienteTelefono: valor("clienteTelefono"),
+    clienteCelular: valor("clienteCelular"),
+    clienteCorreo: valor("clienteCorreo"),
+    clienteDomicilioAnterior: valor("clienteDomicilioAnterior"),
+    clienteAntiguedadDomicilioAnterior: valor("clienteAntiguedadDomicilioAnterior"),
+    clienteDependientes: numeroValor("clienteDependientes"),
+    clienteEdadesDependientes: valor("clienteEdadesDependientes"),
+    clienteConyuge: valor("clienteConyuge"),
+    clienteConyugeFechaNacimiento: valor("clienteConyugeFechaNacimiento"),
+    clienteConyugeEdad: numeroValor("clienteConyugeEdad"),
+
+    laboralEmpresa: valor("laboralEmpresa"),
+    laboralOcupacion: valor("laboralOcupacion"),
+    laboralDomicilio: valor("laboralDomicilio"),
+    laboralNumero: valor("laboralNumero"),
+    laboralColonia: valor("laboralColonia"),
+    laboralCiudad: valor("laboralCiudad"),
+    laboralMunicipio: valor("laboralMunicipio"),
+    laboralEstado: valor("laboralEstado"),
+    laboralCp: valor("laboralCp"),
+    laboralTelefono: valor("laboralTelefono"),
+    laboralExtension: valor("laboralExtension"),
+    laboralActividad: valor("laboralActividad"),
+    laboralSector: valor("laboralSector"),
+    laboralAntiguedad: valor("laboralAntiguedad"),
+    laboralAntiguedadAnterior: valor("laboralAntiguedadAnterior"),
+
+    sustitutoNombre: valor("sustitutoNombre"),
+    sustitutoDomicilio: valor("sustitutoDomicilio"),
+    sustitutoEdad: numeroValor("sustitutoEdad"),
+    sustitutoTelefono: valor("sustitutoTelefono"),
+    sustitutoParentesco: valor("sustitutoParentesco"),
+    sustitutoId: valor("sustitutoId")
+  };
+}
+
 async function guardarBorrador() {
   const saveButton = document.getElementById("btnSaveDraft");
-  const tipoSolicitud = document.getElementById("tipoSolicitud").value;
-  const tipoOperacion = document.getElementById("tipoOperacion").value;
-  const tipoVentaProcap = document.getElementById("tipoVentaProcap").value;
-  const fechaSolicitud = document.getElementById("fechaSolicitud").value;
+  const payload = construirPayloadBorrador();
 
-  if (!tipoSolicitud || !tipoOperacion || !tipoVentaProcap || !fechaSolicitud) {
+  if (!payload.tipoSolicitud || !payload.tipoOperacion || !payload.tipoVentaProcap || !payload.fechaSolicitud) {
     mostrarMensaje("Para crear el borrador selecciona Tipo de solicitud, Tipo de operación y Fecha.", "error");
     return;
   }
@@ -352,17 +433,7 @@ async function guardarBorrador() {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${token}`
       },
-      body: JSON.stringify({
-        accion: "guardar_borrador",
-        itemId: borradorActual.itemId,
-        folio: borradorActual.folio,
-        tipoSolicitud,
-        tipoOperacion,
-        tipoVentaProcap,
-        fechaSolicitud,
-        referencia: document.getElementById("referencia").value.trim(),
-        lugar: document.getElementById("lugar").value
-      })
+      body: JSON.stringify(payload)
     });
 
     const resultado = await response.json().catch(() => null);
