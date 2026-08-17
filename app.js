@@ -10,6 +10,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const tipoSolicitud = document.getElementById("tipoSolicitud");
   const tipoOperacion = document.getElementById("tipoOperacion");
   const formaPago = document.getElementById("formaPago");
+  const laboralOcupacion = document.getElementById("laboralOcupacion");
   const fechaNacimiento = document.getElementById("fechaNacimiento");
   const fechaNacimientoConyuge = document.getElementById("clienteConyugeFechaNacimiento");
   const precioTotal = document.getElementById("precioTotal");
@@ -17,6 +18,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const mensualidades = document.getElementById("mensualidades");
   const saveButton = asegurarBotonGuardarBorrador();
 
+  configurarInformacionLaboral();
   aplicarEjemplosCampos();
 
   loginButton.addEventListener("click", async () => {
@@ -42,6 +44,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   tipoSolicitud.addEventListener("change", actualizarFormularioDinamico);
   tipoOperacion.addEventListener("change", actualizarFormularioDinamico);
   formaPago.addEventListener("change", actualizarFinanciamiento);
+  laboralOcupacion.addEventListener("change", actualizarInformacionLaboral);
   fechaNacimiento.addEventListener("change", () => calcularEdadDesde("fechaNacimiento", "edadCliente"));
   fechaNacimientoConyuge.addEventListener("change", () => calcularEdadDesde("clienteConyugeFechaNacimiento", "clienteConyugeEdad"));
   precioTotal.addEventListener("input", recalcularImportes);
@@ -56,6 +59,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     copiarUsuarioEnVendedor();
     actualizarFormularioDinamico();
     actualizarFinanciamiento();
+    actualizarInformacionLaboral();
     recalcularImportes();
     actualizarFolio("PENDIENTE");
     mostrarMensaje("Formulario limpiado. Puedes guardar un nuevo borrador cuando captures los datos iniciales.");
@@ -64,6 +68,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     actualizarRequiredVisibles();
+    actualizarInformacionLaboral();
 
     if (!form.checkValidity()) {
       form.reportValidity();
@@ -85,6 +90,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     copiarUsuarioEnVendedor();
     actualizarFormularioDinamico();
     actualizarFinanciamiento();
+    actualizarInformacionLaboral();
     recalcularImportes();
     loginButton.disabled = false;
 
@@ -115,6 +121,59 @@ function asegurarBotonGuardarBorrador() {
   button.textContent = "Guardar borrador";
   validateButton.parentElement.insertBefore(button, validateButton);
   return button;
+}
+
+function configurarInformacionLaboral() {
+  const ocupacion = document.getElementById("laboralOcupacion");
+  if (!ocupacion) return;
+
+  ["HOGAR", "NO APLICA"].forEach((valorOpcion) => {
+    const existe = Array.from(ocupacion.options).some((option) => option.value === valorOpcion);
+    if (!existe) agregarOpcion(ocupacion, valorOpcion);
+  });
+
+  const etiquetaOcupacion = ocupacion.closest("label");
+  const grid = etiquetaOcupacion?.parentElement;
+  if (grid && etiquetaOcupacion && grid.firstElementChild !== etiquetaOcupacion) {
+    grid.insertBefore(etiquetaOcupacion, grid.firstElementChild);
+  }
+}
+
+function ocupacionLaboralSinDetalle() {
+  return ["HOGAR", "OTRO", "NO APLICA"].includes(valor("laboralOcupacion"));
+}
+
+function actualizarInformacionLaboral() {
+  const omitirDetalle = ocupacionLaboralSinDetalle();
+  const idsDetalle = [
+    "laboralEmpresa",
+    "laboralDomicilio",
+    "laboralNumero",
+    "laboralColonia",
+    "laboralEstado",
+    "laboralCp",
+    "laboralCiudad",
+    "laboralMunicipio",
+    "laboralTelefono",
+    "laboralExtension",
+    "laboralActividad",
+    "laboralSector",
+    "laboralAntiguedad",
+    "laboralAntiguedadAnterior"
+  ];
+
+  idsDetalle.forEach((id) => {
+    const control = document.getElementById(id);
+    const etiqueta = control?.closest("label");
+    if (!control || !etiqueta) return;
+
+    etiqueta.hidden = omitirDetalle;
+    control.required = !omitirDetalle;
+
+    if (omitirDetalle) {
+      control.value = "";
+    }
+  });
 }
 
 function aplicarEjemplosCampos() {
@@ -341,6 +400,8 @@ function numeroValor(id) {
 }
 
 function construirPayloadBorrador() {
+  const sinDetalleLaboral = ocupacionLaboralSinDetalle();
+
   return {
     accion: "guardar_borrador",
     itemId: borradorActual.itemId,
@@ -386,21 +447,21 @@ function construirPayloadBorrador() {
     clienteConyugeFechaNacimiento: valor("clienteConyugeFechaNacimiento"),
     clienteConyugeEdad: numeroValor("clienteConyugeEdad"),
 
-    laboralEmpresa: valor("laboralEmpresa"),
+    laboralEmpresa: sinDetalleLaboral ? "" : valor("laboralEmpresa"),
     laboralOcupacion: valor("laboralOcupacion"),
-    laboralDomicilio: valor("laboralDomicilio"),
-    laboralNumero: valor("laboralNumero"),
-    laboralColonia: valor("laboralColonia"),
-    laboralCiudad: valor("laboralCiudad"),
-    laboralMunicipio: valor("laboralMunicipio"),
-    laboralEstado: valor("laboralEstado"),
-    laboralCp: valor("laboralCp"),
-    laboralTelefono: valor("laboralTelefono"),
-    laboralExtension: valor("laboralExtension"),
-    laboralActividad: valor("laboralActividad"),
-    laboralSector: valor("laboralSector"),
-    laboralAntiguedad: valor("laboralAntiguedad"),
-    laboralAntiguedadAnterior: valor("laboralAntiguedadAnterior"),
+    laboralDomicilio: sinDetalleLaboral ? "" : valor("laboralDomicilio"),
+    laboralNumero: sinDetalleLaboral ? "" : valor("laboralNumero"),
+    laboralColonia: sinDetalleLaboral ? "" : valor("laboralColonia"),
+    laboralCiudad: sinDetalleLaboral ? "" : valor("laboralCiudad"),
+    laboralMunicipio: sinDetalleLaboral ? "" : valor("laboralMunicipio"),
+    laboralEstado: sinDetalleLaboral ? "" : valor("laboralEstado"),
+    laboralCp: sinDetalleLaboral ? "" : valor("laboralCp"),
+    laboralTelefono: sinDetalleLaboral ? "" : valor("laboralTelefono"),
+    laboralExtension: sinDetalleLaboral ? "" : valor("laboralExtension"),
+    laboralActividad: sinDetalleLaboral ? "" : valor("laboralActividad"),
+    laboralSector: sinDetalleLaboral ? "" : valor("laboralSector"),
+    laboralAntiguedad: sinDetalleLaboral ? "" : valor("laboralAntiguedad"),
+    laboralAntiguedadAnterior: sinDetalleLaboral ? "" : valor("laboralAntiguedadAnterior"),
 
     sustitutoNombre: valor("sustitutoNombre"),
     sustitutoDomicilio: valor("sustitutoDomicilio"),
