@@ -10,6 +10,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const precioTotal = document.getElementById("precioTotal");
   const enganche = document.getElementById("enganche");
   const mensualidades = document.getElementById("mensualidades");
+  const saveButton = asegurarBotonGuardarBorrador();
+
+  aplicarEjemplosCampos();
 
   loginButton.addEventListener("click", async () => {
     try {
@@ -39,6 +42,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   precioTotal.addEventListener("input", recalcularImportes);
   enganche.addEventListener("input", recalcularImportes);
   mensualidades.addEventListener("input", recalcularImportes);
+  saveButton.addEventListener("click", guardarBorrador);
 
   document.getElementById("btnReset").addEventListener("click", () => {
     form.reset();
@@ -47,7 +51,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     actualizarFormularioDinamico();
     actualizarFinanciamiento();
     recalcularImportes();
-    mostrarMensaje("Formulario limpiado. Esta versión aún no guarda información en SharePoint.");
+    actualizarFolio("PENDIENTE");
+    mostrarMensaje("Formulario limpiado. Puedes guardar un nuevo borrador cuando captures los datos iniciales.");
   });
 
   form.addEventListener("submit", (event) => {
@@ -65,7 +70,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
-    mostrarMensaje("Validación correcta. El siguiente paso será guardar esta solicitud en SharePoint.", "ok");
+    mostrarMensaje("Validación correcta. La solicitud está completa para continuar al flujo de Vo.Bo.", "ok");
   });
 
   try {
@@ -76,11 +81,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     actualizarFinanciamiento();
     recalcularImportes();
     loginButton.disabled = false;
-    
+
     if (window.solicitudVentaAuth.getUser()) {
       await probarBackendSeguro();
     }
-    
+
     if (!window.solicitudVentaAuth.getUser()) {
       document.getElementById("loginMessage").textContent =
         "Inicia sesión con tu cuenta empresarial de Jardines de Juan Pablo.";
@@ -91,6 +96,97 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("loginMessage").textContent = formatearErrorAcceso(error);
   }
 });
+
+function asegurarBotonGuardarBorrador() {
+  let button = document.getElementById("btnSaveDraft");
+  if (button) return button;
+
+  const validateButton = document.getElementById("btnValidate");
+  button = document.createElement("button");
+  button.id = "btnSaveDraft";
+  button.type = "button";
+  button.className = "draft-button inline-button";
+  button.textContent = "Guardar borrador";
+  validateButton.parentElement.insertBefore(button, validateButton);
+  return button;
+}
+
+function aplicarEjemplosCampos() {
+  const ejemplos = {
+    referencia: "Ej. PLATINO - 001 - A",
+    origenVenta: "Ej. RECOMENDACION / REDES SOCIALES / VISITA",
+    clienteNumeroId: "Ej. 1234567890",
+    clienteRfc: "Ej. GUGA920101ABC",
+    clienteCurp: "Ej. GUGA920101HNLRRB01",
+    clienteApellidoPaterno: "Ej. GONZALEZ",
+    clienteApellidoMaterno: "Ej. MARTINEZ",
+    clienteNombres: "Ej. JUAN CARLOS",
+    clienteDomicilio: "Ej. AV. UNIVERSIDAD",
+    clienteNumero: "Ej. 1250 INT. 4",
+    clienteColonia: "Ej. MITRAS CENTRO",
+    clienteEstado: "Ej. NUEVO LEON",
+    clienteCp: "Ej. 64000",
+    clienteCiudad: "Ej. MONTERREY",
+    clienteMunicipio: "Ej. MONTERREY",
+    clienteTelefono: "Ej. 81 1234 5678",
+    clienteCelular: "Ej. 81 1234 5678",
+    clienteCorreo: "Ej. cliente@correo.com",
+    clienteDomicilioAnterior: "Ej. CALLE HIDALGO 123, CENTRO",
+    clienteAntiguedadDomicilioAnterior: "Ej. 3 AÑOS",
+    clienteEdadesDependientes: "Ej. 5, 9, 14",
+    clienteConyuge: "Ej. MARIA LOPEZ GARCIA / NO APLICA",
+    laboralEmpresa: "Ej. EMPRESA ABC, S.A. DE C.V.",
+    laboralDomicilio: "Ej. AV. CONSTITUCION",
+    laboralNumero: "Ej. 450",
+    laboralColonia: "Ej. OBISPADO",
+    laboralEstado: "Ej. NUEVO LEON",
+    laboralCp: "Ej. 64060",
+    laboralCiudad: "Ej. MONTERREY",
+    laboralMunicipio: "Ej. MONTERREY",
+    laboralTelefono: "Ej. 81 1234 5678",
+    laboralExtension: "Ej. 125 / SIN EXTENSION",
+    laboralActividad: "Ej. ADMINISTRACION",
+    laboralAntiguedad: "Ej. 5 AÑOS 3 MESES",
+    laboralAntiguedadAnterior: "Ej. 2 AÑOS / NO APLICA",
+    sustitutoNombre: "Ej. ANA MARTINEZ LOPEZ",
+    sustitutoDomicilio: "Ej. AV. LEONES 1500, CUMBRES",
+    sustitutoTelefono: "Ej. 81 1234 5678",
+    sustitutoParentesco: "Ej. HIJA",
+    sustitutoId: "Ej. INE 1234567890",
+    referencia1Nombre: "Ej. PEDRO GONZALEZ MARTINEZ",
+    referencia1Telefono: "Ej. 81 1234 5678",
+    referencia1Celular: "Ej. 81 9876 5432",
+    referencia2Nombre: "Ej. LAURA MARTINEZ LOPEZ",
+    referencia2Telefono: "Ej. 81 2345 6789",
+    referencia2Celular: "Ej. 81 8765 4321",
+    banco1Nombre: "Ej. BBVA",
+    banco1TipoCuenta: "Ej. NOMINA / DEBITO / CHEQUES",
+    banco1NumeroCuenta: "Ej. 1234567890",
+    banco2Nombre: "Ej. BANORTE / NO APLICA",
+    banco2TipoCuenta: "Ej. DEBITO / NO APLICA",
+    banco2NumeroCuenta: "Ej. 9876543210 / NO APLICA",
+    paquete: "Ej. PLAN PREVISION PLATINO",
+    descripcionVenta: "Ej. LOTE PLATINO, SECCION 001, NUMERO 025",
+    servicioAtaud: "Ej. MADERA MODELO ITALIA",
+    servicioUrna: "Ej. URNA DE MADERA / NO APLICA",
+    servicioDuracion: "Ej. 12 HORAS",
+    propiedadSeccion: "Ej. PLATINO",
+    propiedadManzana: "Ej. 001",
+    propiedadNumero: "Ej. 025",
+    propiedadClave: "Ej. PLATINO-001-025"
+  };
+
+  Object.entries(ejemplos).forEach(([id, placeholder]) => {
+    const control = document.getElementById(id);
+    if (control) control.placeholder = placeholder;
+  });
+
+  document.querySelectorAll('input[type="text"], input[type="tel"], input[type="email"], textarea').forEach((control) => {
+    if (!control.placeholder && !control.readOnly) {
+      control.placeholder = "Ej. captura la información correspondiente";
+    }
+  });
+}
 
 function formatearErrorAcceso(error) {
   const mensaje = String(error?.message || error || "Error desconocido");
@@ -220,6 +316,62 @@ function recalcularImportes() {
   document.getElementById("importeMensual").value = pagos > 0 ? (saldo / pagos).toFixed(2) : "0.00";
 }
 
+function actualizarFolio(folio) {
+  const control = document.querySelector(".folio-box strong");
+  if (control) control.textContent = folio || "PENDIENTE";
+}
+
+async function guardarBorrador() {
+  const saveButton = document.getElementById("btnSaveDraft");
+  const tipoSolicitud = document.getElementById("tipoSolicitud").value;
+  const tipoOperacion = document.getElementById("tipoOperacion").value;
+  const tipoVentaProcap = document.getElementById("tipoVentaProcap").value;
+  const fechaSolicitud = document.getElementById("fechaSolicitud").value;
+
+  if (!tipoSolicitud || !tipoOperacion || !tipoVentaProcap || !fechaSolicitud) {
+    mostrarMensaje("Para crear el borrador selecciona Tipo de solicitud, Tipo de operación y Fecha.", "error");
+    return;
+  }
+
+  try {
+    saveButton.disabled = true;
+    mostrarMensaje("Guardando borrador en SharePoint...");
+
+    const token = await window.solicitudVentaAuth.getBackendAccessToken();
+    if (!token) return;
+
+    const response = await fetch("/api/solicitud-venta/borrador.php", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        accion: "guardar_borrador",
+        tipoSolicitud,
+        tipoOperacion,
+        tipoVentaProcap,
+        fechaSolicitud,
+        referencia: document.getElementById("referencia").value.trim(),
+        lugar: document.getElementById("lugar").value
+      })
+    });
+
+    const resultado = await response.json().catch(() => null);
+    if (!response.ok || !resultado?.ok) {
+      throw new Error(resultado?.message || resultado?.error || `HTTP ${response.status}`);
+    }
+
+    actualizarFolio(resultado.folio);
+    mostrarMensaje(`Borrador ${resultado.folio} guardado correctamente en SharePoint.`, "ok");
+  } catch (error) {
+    console.error("Error al guardar borrador:", error);
+    mostrarMensaje(`No fue posible guardar el borrador: ${error.message || error}`, "error");
+  } finally {
+    saveButton.disabled = false;
+  }
+}
+
 function mostrarMensaje(texto, tipo = "") {
   const mensaje = document.getElementById("formMessage");
   mensaje.textContent = texto;
@@ -233,7 +385,6 @@ async function probarBackendSeguro() {
     const token = await window.solicitudVentaAuth.getBackendAccessToken();
 
     if (!token) {
-      // MSAL pudo haber iniciado un redirect para solicitar consentimiento.
       return;
     }
 
