@@ -19,11 +19,20 @@
 
     inicializado = true;
     envolverGuardado();
-    document.getElementById('btnReset')?.addEventListener('click', () => {
-      limpiarBorradorActivoLocal();
-      setTimeout(() => restaurarComponentesUI([], { tipo: 'AUTOMATICA', promocionNombre: '' }), 0);
+
+    document.getElementById('componentesContainer')?.addEventListener('change', () => {
+      setTimeout(actualizarSeccionesPorComponentes, 0);
     });
 
+    document.getElementById('btnReset')?.addEventListener('click', () => {
+      limpiarBorradorActivoLocal();
+      setTimeout(async () => {
+        await restaurarComponentesUI([], { tipo: 'AUTOMATICA', promocionNombre: '' });
+        actualizarSeccionesPorComponentes();
+      }, 0);
+    });
+
+    actualizarSeccionesPorComponentes();
     setTimeout(restaurarBorradorActivo, 150);
   }
 
@@ -275,15 +284,44 @@
     if (typeof window.solicitudVentaComponentesRecalcular === 'function') {
       window.solicitudVentaComponentesRecalcular();
     }
+    actualizarSeccionesPorComponentes();
+  }
+
+  function actualizarSeccionesPorComponentes() {
+    const cards = Array.from(document.querySelectorAll('#componentesContainer .component-card'));
+    const hayPropiedad = cards.some((card) => ['LOTE', 'NICHO'].includes(card.querySelector('.component-type')?.value || ''));
+    const hayUsoInmediato = cards.some((card) => card.querySelector('.component-operation')?.value === 'USO INMEDIATO');
+
+    if (typeof window.mostrarGrupo === 'function') {
+      window.mostrarGrupo('referenciasSection', hayPropiedad);
+      window.mostrarGrupo('financieraSection', hayPropiedad);
+      window.mostrarGrupo('usoInmediatoSection', hayUsoInmediato);
+    }
+
+    const sustituto = document.getElementById('sustitutoSection');
+    if (sustituto) {
+      sustituto.hidden = false;
+      sustituto.querySelectorAll('input, select, textarea').forEach((control) => {
+        control.required = true;
+      });
+    }
+
+    const tipoAnterior = document.getElementById('tipoSolicitud')?.closest('.form-section');
+    if (tipoAnterior) tipoAnterior.hidden = true;
+    const servicioAnterior = document.getElementById('servicioFields');
+    const propiedadAnterior = document.getElementById('propiedadFields');
+    if (servicioAnterior) servicioAnterior.hidden = true;
+    if (propiedadAnterior) propiedadAnterior.hidden = true;
+
+    if (typeof window.actualizarRequiredVisibles === 'function') window.actualizarRequiredVisibles();
   }
 
   function recalcularDespuesDeRestaurar() {
-    if (typeof window.actualizarFormularioDinamico === 'function') window.actualizarFormularioDinamico();
     if (typeof window.actualizarFinanciamiento === 'function') window.actualizarFinanciamiento();
     if (typeof window.actualizarInformacionLaboral === 'function') window.actualizarInformacionLaboral();
     if (typeof window.recalcularImportes === 'function') window.recalcularImportes();
-    if (typeof window.actualizarRequiredVisibles === 'function') window.actualizarRequiredVisibles();
     if (typeof window.copiarUsuarioEnVendedor === 'function') window.copiarUsuarioEnVendedor();
+    actualizarSeccionesPorComponentes();
   }
 
   function asignarSelect(control, value, emitirCambio) {
