@@ -43,6 +43,26 @@ document.addEventListener("DOMContentLoaded", () => {
     document.body.appendChild(extras);
   }
 
+  // Componentes de la venta debe ser la primera informacion capturable del formulario.
+  // componentes.js crea la seccion de forma dinamica, por eso esperamos hasta que exista.
+  let intentosComponentes = 0;
+  const moverComponentesAlInicio = () => {
+    const form = document.getElementById("solicitudForm");
+    const banner = form?.querySelector(".form-banner");
+    const componentes = document.getElementById("componentesSection");
+
+    if (form && banner && componentes) {
+      form.insertBefore(componentes, banner.nextElementSibling);
+      const numero = componentes.querySelector(".section-title > span");
+      if (numero) numero.textContent = "0";
+      return;
+    }
+
+    intentosComponentes += 1;
+    if (intentosComponentes < 30) setTimeout(moverComponentesAlInicio, 100);
+  };
+  moverComponentesAlInicio();
+
   // Los indicadores de documentos son propiedad del proceso de carga de archivos.
   // Un Guardar borrador posterior no debe regresarlos a false solo porque ya no existen los checkboxes antiguos.
   setTimeout(() => {
