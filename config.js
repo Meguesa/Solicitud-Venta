@@ -27,11 +27,14 @@ document.addEventListener("DOMContentLoaded", () => {
     tipoOperacion?.addEventListener("change", () => setTimeout(asegurarSustitutoUniversal, 0));
   }, 0);
 
-  // Extras se carga despues de app.js para extender el formulario sin alterar su flujo base.
-  const script = document.createElement("script");
-  script.src = "extras.js";
-  script.defer = true;
-  document.body.appendChild(script);
+  // El workflow del Portal puede insertar extras.js directamente. Solo lo cargamos
+  // dinamicamente cuando la pagina no contiene ya ese script.
+  if (!document.querySelector('script[src$="extras.js"]')) {
+    const script = document.createElement("script");
+    script.src = "extras.js";
+    script.defer = true;
+    document.body.appendChild(script);
+  }
 
   // Los indicadores de documentos son propiedad del proceso de carga de archivos.
   // Un Guardar borrador posterior no debe regresarlos a false solo porque ya no existen los checkboxes antiguos.
