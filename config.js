@@ -151,6 +151,25 @@ function configurarReferenciaGeneral() {
 function configurarDatosServicioPorComponente() {
   let intentos = 0;
 
+  const CODIGOS_SERVICIO = {
+    "VELACION E INHUMACION": "VI",
+    "VELACION Y CREMACION": "VC",
+    "CREMACION DIRECTA": "CD",
+    "INHUMACION DIRECTA": "ID",
+    "RENTA DE CAPILLA": "RC",
+    "TRASLADO": "TR",
+    "OTRO": "OT"
+  };
+
+  const CODIGOS_ATAUD = {
+    "ATAUD MADERA BASICO": "ATMADBA",
+    "ATAUD MADERA EXCLUSIVO": "ATMADEX",
+    "ATAUD MADERA DE LUJO": "ATMADLU",
+    "ATAUD METALICO BASICO": "ATMETBA",
+    "ATAUD METALICO EXCLUSIVO": "ATMETEX",
+    "OTRO": "ATOTRO"
+  };
+
   const iniciar = () => {
     const container = document.getElementById("componentesContainer");
     if (!container || typeof window.solicitudVentaComponentesObtener !== "function") {
@@ -163,7 +182,18 @@ function configurarDatosServicioPorComponente() {
       if (!card || card.dataset.servicioNumeroConfigurado === "1") return;
       const serviceFields = card.querySelector(".component-service-fields");
       const tipo = card.querySelector(".component-type");
-      if (!serviceFields || !tipo) return;
+      const servicioTipo = card.querySelector(".component-service-type");
+      const ataud = card.querySelector(".component-service-ataud");
+      const urna = card.querySelector(".component-service-urna");
+      if (!serviceFields || !tipo || !servicioTipo || !ataud || !urna) return;
+
+      const existeNoAplica = Array.from(urna.options).some((option) => option.value === "NO APLICA");
+      if (!existeNoAplica) {
+        const option = document.createElement("option");
+        option.value = "NO APLICA";
+        option.textContent = "No Aplica";
+        urna.appendChild(option);
+      }
 
       const numeroLabel = document.createElement("label");
       numeroLabel.innerHTML = 'Número<input class="component-service-numero" type="text" inputmode="numeric" autocomplete="off">';
@@ -178,9 +208,24 @@ function configurarDatosServicioPorComponente() {
       const numero = card.querySelector(".component-service-numero");
       const clave = card.querySelector(".component-service-clave");
 
+      const actualizarUrna = () => {
+        const esInhumacion = String(servicioTipo.value || "").toUpperCase().includes("INHUMACION");
+        if (esInhumacion) {
+          urna.value = "NO APLICA";
+          urna.disabled = true;
+        } else {
+          urna.disabled = false;
+          if (urna.value === "NO APLICA") urna.value = "";
+        }
+      };
+
       const actualizarClave = () => {
+        const codigoServicio = CODIGOS_SERVICIO[String(servicioTipo.value || "").toUpperCase()] || "";
+        const codigoAtaud = CODIGOS_ATAUD[String(ataud.value || "").toUpperCase()] || "";
         const valorNumero = String(numero?.value || "").trim().toUpperCase();
-        if (clave) clave.value = valorNumero ? `SERVICIO-${valorNumero}` : "";
+        if (clave) clave.value = codigoServicio && codigoAtaud && valorNumero
+          ? `${codigoServicio}-${codigoAtaud}-${valorNumero}`
+          : "";
       };
 
       const actualizarRequired = () => {
@@ -190,16 +235,24 @@ function configurarDatosServicioPorComponente() {
         if (!esServicio) {
           if (numero) numero.value = "";
           if (clave) clave.value = "";
+          urna.disabled = false;
         }
       };
 
       numero?.addEventListener("input", actualizarClave);
+      servicioTipo.addEventListener("change", () => {
+        actualizarUrna();
+        actualizarClave();
+      });
+      ataud.addEventListener("change", actualizarClave);
       tipo.addEventListener("change", () => {
         actualizarRequired();
+        actualizarUrna();
         actualizarClave();
       });
 
       actualizarRequired();
+      actualizarUrna();
       actualizarClave();
     };
 
