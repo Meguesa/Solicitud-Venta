@@ -86,7 +86,18 @@ document.addEventListener("DOMContentLoaded", () => {
         delete payload.documentoIdSustituto;
         delete payload.documentoComprobanteDomicilio;
         delete payload.documentoComprobantePago;
-        payload.referencia = "";
+
+        // La referencia general ya no existe. Para un SERVICIO principal usamos
+        // directamente su clave de componente; para LOTE/NICHO queda vacia porque
+        // esos productos usan Propiedad_Clave.
+        const principal = document.querySelector("#componentesContainer .component-card");
+        const tipoPrincipal = principal?.querySelector(".component-type")?.value || "";
+        const servicioNumero = principal?.querySelector(".component-service-numero")?.value?.trim() || "";
+        const servicioClave = principal?.querySelector(".component-service-clave")?.value?.trim() || "";
+
+        payload.servicioNumero = tipoPrincipal === "SERVICIO" ? servicioNumero : "";
+        payload.servicioClave = tipoPrincipal === "SERVICIO" ? servicioClave : "";
+        payload.referencia = tipoPrincipal === "SERVICIO" ? servicioClave : "";
         return payload;
       };
       window.__solicitudPayloadDocumentosProtegido = true;
