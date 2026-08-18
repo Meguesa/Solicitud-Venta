@@ -27,13 +27,20 @@ document.addEventListener("DOMContentLoaded", () => {
     tipoOperacion?.addEventListener("change", () => setTimeout(asegurarSustitutoUniversal, 0));
   }, 0);
 
-  // El workflow del Portal puede insertar extras.js directamente. Solo lo cargamos
-  // dinamicamente cuando la pagina no contiene ya ese script.
+  // El workflow del Portal inserta estos scripts directamente. Los cargamos aqui
+  // solo como respaldo cuando se abre el repositorio Solicitud-Venta por separado.
+  if (!document.querySelector('script[src$="componentes.js"]')) {
+    const componentes = document.createElement("script");
+    componentes.src = "componentes.js";
+    componentes.defer = true;
+    document.body.appendChild(componentes);
+  }
+
   if (!document.querySelector('script[src$="extras.js"]')) {
-    const script = document.createElement("script");
-    script.src = "extras.js";
-    script.defer = true;
-    document.body.appendChild(script);
+    const extras = document.createElement("script");
+    extras.src = "extras.js";
+    extras.defer = true;
+    document.body.appendChild(extras);
   }
 
   // Los indicadores de documentos son propiedad del proceso de carga de archivos.
