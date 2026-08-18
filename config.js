@@ -36,6 +36,13 @@ document.addEventListener("DOMContentLoaded", () => {
     document.body.appendChild(componentes);
   }
 
+  if (!document.querySelector('script[src$="componentes-sync.js"]')) {
+    const sync = document.createElement("script");
+    sync.src = "componentes-sync.js";
+    sync.defer = true;
+    document.body.appendChild(sync);
+  }
+
   if (!document.querySelector('script[src$="extras.js"]')) {
     const extras = document.createElement("script");
     extras.src = "extras.js";
@@ -44,7 +51,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Componentes de la venta debe ser la primera informacion capturable del formulario.
-  // componentes.js crea la seccion de forma dinamica, por eso esperamos hasta que exista.
   let intentosComponentes = 0;
   const moverComponentesAlInicio = () => {
     const form = document.getElementById("solicitudForm");
@@ -64,7 +70,6 @@ document.addEventListener("DOMContentLoaded", () => {
   moverComponentesAlInicio();
 
   // Los indicadores de documentos son propiedad del proceso de carga de archivos.
-  // Un Guardar borrador posterior no debe regresarlos a false solo porque ya no existen los checkboxes antiguos.
   setTimeout(() => {
     const originalConstruirPayload = window.construirPayloadBorrador;
     if (typeof originalConstruirPayload === "function" && !window.__solicitudPayloadDocumentosProtegido) {
