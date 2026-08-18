@@ -15,7 +15,7 @@
 
     inicializado = true;
     insertarSelectorModalidad(firmasSection);
-    form.addEventListener("submit", interceptarFirmaRemota, true);
+    btnValidate.addEventListener("click", interceptarFirmaRemota, true);
     document.getElementById("btnReset")?.addEventListener("click", () => setTimeout(restablecer, 0));
     actualizarModalidad();
   }
