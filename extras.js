@@ -1,6 +1,7 @@
 (() => {
   const MAX_FILE_BYTES = 12 * 1024 * 1024;
   const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+  const STORAGE_PREFIX = "solicitudVenta:borradorActivo:v1:";
   const firmas = {};
   let inicializado = false;
 
@@ -14,6 +15,7 @@
     inicializado = true;
     configurarDocumentos();
     configurarFirmas();
+    configurarReinicioFlujo();
     interceptarGuardado();
     interceptarValidacion();
   }
@@ -249,6 +251,17 @@
     }
   }
 
+  function configurarReinicioFlujo() {
+    document.getElementById("btnReset")?.addEventListener("click", () => {
+      const guardar = document.getElementById("btnSaveDraft");
+      const validar = document.getElementById("btnValidate");
+      if (guardar) guardar.disabled = false;
+      if (validar) validar.disabled = false;
+      const pill = document.querySelector(".status-pill");
+      if (pill) pill.textContent = "Borrador";
+    });
+  }
+
   function interceptarGuardado() {
     const button = document.getElementById("btnSaveDraft");
     if (!button || button.dataset.extrasIntercepted === "1") return;
@@ -284,6 +297,15 @@
       if (typeof window.actualizarRequiredVisibles === "function") window.actualizarRequiredVisibles();
       if (typeof window.actualizarInformacionLaboral === "function") window.actualizarInformacionLaboral();
 
+      const validacionComponentes = typeof window.solicitudVentaComponentesValidar === "function"
+        ? window.solicitudVentaComponentesValidar()
+        : { ok: true };
+      if (!validacionComponentes?.ok) {
+        mostrarMensajeExtra(validacionComponentes?.message || "Revisa los componentes de la venta.", "error");
+        document.getElementById("componentesSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+
       if (!form.checkValidity()) {
         form.reportValidity();
         mostrarMensajeExtra("Faltan campos obligatorios por completar.", "error");
@@ -313,13 +335,20 @@
         return;
       }
 
+      const validarButton = document.getElementById("btnValidate");
+      if (validarButton) validarButton.disabled = true;
+
       try {
         mostrarMensajeExtra("Guardando documentación y firmas...");
         await subirPendientes(folio, true);
         await refrescarEstadoPersistente();
-        mostrarMensajeExtra("Validación correcta. Documentación y firmas guardadas en el expediente. La solicitud está lista para continuar al flujo de Vo.Bo.", "ok");
+
+        mostrarMensajeExtra("Enviando solicitud al flujo de Vo.Bo...");
+        const resultado = await enviarSolicitudVoBo(folio);
+        finalizarEnvioVoBo(resultado);
       } catch (error) {
         console.error("Error al preparar la solicitud:", error);
+        if (validarButton) validarButton.disabled = false;
         mostrarMensajeExtra(`No fue posible completar la validación: ${error.message || error}`, "error");
       }
     }, true);
@@ -412,6 +441,58 @@
       throw new Error(resultado?.message || resultado?.error || `HTTP ${response.status}`);
     }
     return resultado;
+  }
+
+  async function enviarSolicitudVoBo(folio) {
+    const token = await window.solicitudVentaAuth.getBackendAccessToken();
+    if (!token) throw new Error("No fue posible obtener autorización para enviar la solicitud a Vo.Bo.");
+
+    const response = await fetch("/api/solicitud-venta/validar.php", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({ folio })
+    });
+
+    const resultado = await response.json().catch(() => null);
+    if (!response.ok || !resultado?.ok) {
+      throw new Error(resultado?.message || resultado?.error || `HTTP ${response.status}`);
+    }
+    return resultado;
+  }
+
+  function finalizarEnvioVoBo(resultado) {
+    const folio = resultado?.folio || obtenerFolioActual();
+    const total = Number(resultado?.componentesActualizados || 0);
+    const estatus = resultado?.estatus || "PENDIENTE VOBO";
+
+    limpiarBorradorActivoLocal();
+
+    const pill = document.querySelector(".status-pill");
+    if (pill) pill.textContent = estatus;
+
+    const guardar = document.getElementById("btnSaveDraft");
+    const validar = document.getElementById("btnValidate");
+    if (guardar) guardar.disabled = true;
+    if (validar) validar.disabled = true;
+
+    mostrarMensajeExtra(
+      `Solicitud ${folio} enviada a Vo.Bo. correctamente${total ? ` con ${total} componente(s)` : ""}. Estatus: ${estatus}.`,
+      "ok"
+    );
+  }
+
+  function limpiarBorradorActivoLocal() {
+    const usuario = window.solicitudVentaAuth?.getUser?.();
+    const correo = String(usuario?.username || document.getElementById("userEmail")?.textContent || "").trim().toLowerCase();
+    if (!correo) return;
+    try {
+      localStorage.removeItem(`${STORAGE_PREFIX}${correo}`);
+    } catch (error) {
+      console.warn("No fue posible limpiar el apuntador local del borrador validado:", error);
+    }
   }
 
   function capturarEstadoExpediente() {
