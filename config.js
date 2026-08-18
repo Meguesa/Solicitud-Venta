@@ -50,6 +50,13 @@ document.addEventListener("DOMContentLoaded", () => {
     document.body.appendChild(extras);
   }
 
+  if (!document.querySelector('script[src$="persistencia.js"]')) {
+    const persistencia = document.createElement("script");
+    persistencia.src = "persistencia.js";
+    persistencia.defer = true;
+    document.body.appendChild(persistencia);
+  }
+
   // Componentes de la venta debe ser la primera informacion capturable del formulario.
   let intentosComponentes = 0;
   const moverComponentesAlInicio = () => {
