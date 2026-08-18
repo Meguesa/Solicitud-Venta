@@ -3,6 +3,40 @@
   let consecutivo = 0;
   const componentes = [];
 
+  const ATAUDES = [
+    ['ATAUD MADERA BASICO', 'ATAUD MADERA BASICO'],
+    ['ATAUD MADERA EXCLUSIVO', 'ATAUD MADERA EXCLUSIVO'],
+    ['ATAUD MADERA DE LUJO', 'ATAUD MADERA DE LUJO'],
+    ['ATAUD METALICO BASICO', 'ATAUD METALICO BASICO'],
+    ['ATAUD METALICO EXCLUSIVO', 'ATAUD METALICO EXCLUSIVO'],
+    ['OTRO', 'OTRO']
+  ];
+
+  const URNAS = [
+    ['URNA MARMOL', 'Urna Marmol'],
+    ['URNA INFANTIL', 'Urna Infantil'],
+    ['URNA ECOLOGICA', 'Urna Ecologica']
+  ];
+
+  const DURACIONES = [
+    ['2 HORAS', '2 Horas'],
+    ['6 HORAS', '6 Horas'],
+    ['12 HORAS', '12 Horas'],
+    ['24 HORAS', '24 Horas']
+  ];
+
+  const SUBTIPOS_LOTE = [
+    ['LOTE JARDIN', 'Lote Jardin'],
+    ['LOTE VIP', 'Lote VIP']
+  ];
+
+  const SUBTIPOS_NICHO = [
+    ['PLN', 'PLN'],
+    ['SPN', 'SPN']
+  ];
+
+  const SECCIONES_LOTE = ['ORO', 'PLATINO', 'BRONCE', 'PLATA', 'SPV', 'SMV', 'SJV'];
+
   function iniciar() {
     if (inicializado) return;
     const form = document.getElementById('solicitudForm');
@@ -172,17 +206,37 @@
             <option>OTRO</option>
           </select>
         </label>
-        <label>Tipo de ataúd<input class="component-service-ataud" type="text"></label>
-        <label>Urna<input class="component-service-urna" type="text"></label>
-        <label>Duración del servicio<input class="component-service-duracion" type="text"></label>
+        <label>Tipo de ataúd
+          <select class="component-service-ataud">
+            <option value="">Selecciona</option>
+            ${opcionesHtml(ATAUDES)}
+          </select>
+        </label>
+        <label>Urna
+          <select class="component-service-urna">
+            <option value="">Selecciona</option>
+            ${opcionesHtml(URNAS)}
+          </select>
+        </label>
+        <label>Duración del servicio
+          <select class="component-service-duracion">
+            <option value="">Selecciona</option>
+            ${opcionesHtml(DURACIONES)}
+          </select>
+        </label>
       </div>
 
       <div class="component-property-fields form-grid grid-4" hidden>
-        <label>Subtipo<select class="component-property-type"><option value="">Selecciona</option></select></label>
-        <label>Sección<input class="component-property-seccion" type="text"></label>
+        <label>Subtipo
+          <select class="component-property-type"><option value="">Selecciona</option></select>
+        </label>
+        <label>Sección
+          <select class="component-property-seccion-select" hidden><option value="">Selecciona</option></select>
+          <input class="component-property-seccion-input" type="text" hidden>
+        </label>
         <label>Manzana<input class="component-property-manzana" type="text"></label>
         <label>Número<input class="component-property-numero" type="text"></label>
-        <label>Clave de propiedad<input class="component-property-clave" type="text"></label>
+        <label>Clave de propiedad<input class="component-property-clave" type="text" readonly></label>
       </div>
 
       <div class="component-money-grid form-grid grid-2">
@@ -209,7 +263,8 @@
       servicioDuracion: card.querySelector('.component-service-duracion'),
       propiedad: card.querySelector('.component-property-fields'),
       propiedadTipo: card.querySelector('.component-property-type'),
-      propiedadSeccion: card.querySelector('.component-property-seccion'),
+      propiedadSeccionSelect: card.querySelector('.component-property-seccion-select'),
+      propiedadSeccionInput: card.querySelector('.component-property-seccion-input'),
       propiedadManzana: card.querySelector('.component-property-manzana'),
       propiedadNumero: card.querySelector('.component-property-numero'),
       propiedadClave: card.querySelector('.component-property-clave'),
@@ -221,26 +276,40 @@
 
     item.tipo.value = datos.tipo || '';
     item.operacion.value = datos.operacion || 'PREVISION';
-    item.servicioTipo.value = datos.servicioTipo || '';
-    item.servicioAtaud.value = datos.servicioAtaud || '';
-    item.servicioUrna.value = datos.servicioUrna || '';
-    item.servicioDuracion.value = datos.servicioDuracion || '';
-    item.propiedadSeccion.value = datos.propiedadSeccion || '';
+    seleccionarSiExiste(item.servicioTipo, datos.servicioTipo || '');
+    seleccionarSiExiste(item.servicioAtaud, datos.servicioAtaud || '');
+    seleccionarSiExiste(item.servicioUrna, datos.servicioUrna || '');
+    seleccionarSiExiste(item.servicioDuracion, datos.servicioDuracion || '');
     item.propiedadManzana.value = datos.propiedadManzana || '';
     item.propiedadNumero.value = datos.propiedadNumero || '';
-    item.propiedadClave.value = datos.propiedadClave || '';
 
     item.tipo.addEventListener('change', () => {
       actualizarComponente(item);
+      actualizarClavePropiedad(item);
       sincronizarPrincipal();
     });
     item.operacion.addEventListener('change', () => {
       actualizarComponente(item);
       sincronizarPrincipal();
     });
-    [item.servicioTipo, item.servicioAtaud, item.servicioUrna, item.servicioDuracion,
-      item.propiedadTipo, item.propiedadSeccion, item.propiedadManzana, item.propiedadNumero, item.propiedadClave]
-      .forEach((control) => control.addEventListener('input', sincronizarPrincipal));
+
+    [item.servicioTipo, item.servicioAtaud, item.servicioUrna, item.servicioDuracion, item.propiedadTipo]
+      .forEach((control) => control.addEventListener('change', sincronizarPrincipal));
+
+    item.propiedadSeccionSelect.addEventListener('change', () => {
+      actualizarClavePropiedad(item);
+      sincronizarPrincipal();
+    });
+    item.propiedadSeccionInput.addEventListener('input', () => {
+      actualizarClavePropiedad(item);
+      sincronizarPrincipal();
+    });
+    [item.propiedadManzana, item.propiedadNumero].forEach((control) => {
+      control.addEventListener('input', () => {
+        actualizarClavePropiedad(item);
+        sincronizarPrincipal();
+      });
+    });
 
     item.base.addEventListener('input', recalcularDistribucion);
     item.monto.addEventListener('input', () => {
@@ -250,7 +319,8 @@
 
     card.querySelector('.component-remove')?.addEventListener('click', () => eliminarComponente(item));
 
-    actualizarComponente(item, datos.propiedadTipo || '');
+    actualizarComponente(item, datos.propiedadTipo || '', datos.propiedadSeccion || '');
+    actualizarClavePropiedad(item);
     item.monto.readOnly = obtenerDistribucion() !== 'MANUAL_PROMOCION';
     renumerarComponentes();
   }
@@ -277,7 +347,7 @@
     });
   }
 
-  function actualizarComponente(item, valorPropiedadInicial = '') {
+  function actualizarComponente(item, valorPropiedadInicial = '', valorSeccionInicial = '') {
     const tipo = item.tipo.value;
     const operacion = item.operacion.value;
     item.procap.value = obtenerTipoVentaProcap(tipo, operacion);
@@ -286,16 +356,36 @@
     item.propiedad.hidden = !(tipo === 'LOTE' || tipo === 'NICHO');
 
     item.propiedadTipo.innerHTML = '<option value="">Selecciona</option>';
-    if (tipo === 'LOTE') ['BRONCE', 'ORO', 'PLATA', 'PLATINO', 'SJV', 'SMV', 'SPV'].forEach((v) => agregarOpcion(item.propiedadTipo, v));
-    if (tipo === 'NICHO') ['PLN', 'SPN'].forEach((v) => agregarOpcion(item.propiedadTipo, v));
-    if (valorPropiedadInicial && Array.from(item.propiedadTipo.options).some((o) => o.value === valorPropiedadInicial)) {
-      item.propiedadTipo.value = valorPropiedadInicial;
+    if (tipo === 'LOTE') SUBTIPOS_LOTE.forEach(([value, label]) => agregarOpcion(item.propiedadTipo, value, label));
+    if (tipo === 'NICHO') SUBTIPOS_NICHO.forEach(([value, label]) => agregarOpcion(item.propiedadTipo, value, label));
+    seleccionarSiExiste(item.propiedadTipo, valorPropiedadInicial);
+
+    const esLote = tipo === 'LOTE';
+    item.propiedadSeccionSelect.hidden = !esLote;
+    item.propiedadSeccionInput.hidden = esLote || tipo !== 'NICHO';
+    item.propiedadSeccionSelect.required = esLote;
+    item.propiedadSeccionInput.required = tipo === 'NICHO';
+
+    item.propiedadSeccionSelect.innerHTML = '<option value="">Selecciona</option>';
+    if (esLote) SECCIONES_LOTE.forEach((value) => agregarOpcion(item.propiedadSeccionSelect, value, value));
+
+    if (esLote) {
+      seleccionarSiExiste(item.propiedadSeccionSelect, valorSeccionInicial);
+      item.propiedadSeccionInput.value = '';
+    } else if (tipo === 'NICHO') {
+      item.propiedadSeccionInput.value = valorSeccionInicial || item.propiedadSeccionInput.value || '';
+      item.propiedadSeccionSelect.value = '';
+    } else {
+      item.propiedadSeccionInput.value = '';
+      item.propiedadSeccionSelect.value = '';
     }
 
     const requeridosServicio = [item.servicioTipo, item.servicioAtaud, item.servicioUrna, item.servicioDuracion];
-    const requeridosPropiedad = [item.propiedadTipo, item.propiedadSeccion, item.propiedadManzana, item.propiedadNumero, item.propiedadClave];
+    const requeridosPropiedad = [item.propiedadTipo, item.propiedadManzana, item.propiedadNumero, item.propiedadClave];
     requeridosServicio.forEach((control) => control.required = tipo === 'SERVICIO');
     requeridosPropiedad.forEach((control) => control.required = tipo === 'LOTE' || tipo === 'NICHO');
+
+    actualizarClavePropiedad(item);
   }
 
   function obtenerTipoVentaProcap(tipo, operacion) {
@@ -308,11 +398,40 @@
     return '';
   }
 
-  function agregarOpcion(select, value) {
+  function obtenerSeccion(item) {
+    if (item.tipo.value === 'LOTE') return item.propiedadSeccionSelect.value.trim();
+    if (item.tipo.value === 'NICHO') return item.propiedadSeccionInput.value.trim().toUpperCase();
+    return '';
+  }
+
+  function actualizarClavePropiedad(item) {
+    if (!(item.tipo.value === 'LOTE' || item.tipo.value === 'NICHO')) {
+      item.propiedadClave.value = '';
+      return;
+    }
+
+    const seccion = obtenerSeccion(item);
+    const numero = item.propiedadNumero.value.trim().toUpperCase();
+    const manzana = item.propiedadManzana.value.trim().toUpperCase();
+    item.propiedadClave.value = seccion && numero && manzana ? `${seccion}-${numero}-${manzana}` : '';
+  }
+
+  function opcionesHtml(opciones) {
+    return opciones.map(([value, label]) => `<option value="${value}">${label}</option>`).join('');
+  }
+
+  function agregarOpcion(select, value, label = value) {
     const option = document.createElement('option');
     option.value = value;
-    option.textContent = value;
+    option.textContent = label;
     select.appendChild(option);
+  }
+
+  function seleccionarSiExiste(select, value) {
+    if (!value) return;
+    const buscado = String(value).trim().toUpperCase();
+    const option = Array.from(select.options).find((item) => item.value.toUpperCase() === buscado || item.textContent.trim().toUpperCase() === buscado);
+    if (option) select.value = option.value;
   }
 
   function obtenerDistribucion() {
@@ -380,7 +499,7 @@
     asignar('servicioUrna', principal.servicioUrna.value);
     asignar('servicioDuracion', principal.servicioDuracion.value);
     asignar('propiedadTipo', principal.propiedadTipo.value);
-    asignar('propiedadSeccion', principal.propiedadSeccion.value);
+    asignar('propiedadSeccion', obtenerSeccion(principal));
     asignar('propiedadManzana', principal.propiedadManzana.value);
     asignar('propiedadNumero', principal.propiedadNumero.value);
     asignar('propiedadClave', principal.propiedadClave.value);
@@ -409,9 +528,9 @@
       servicioUrna: item.servicioUrna.value,
       servicioDuracion: item.servicioDuracion.value,
       propiedadTipo: item.propiedadTipo.value,
-      propiedadSeccion: item.propiedadSeccion.value,
-      propiedadManzana: item.propiedadManzana.value,
-      propiedadNumero: item.propiedadNumero.value,
+      propiedadSeccion: obtenerSeccion(item),
+      propiedadManzana: item.propiedadManzana.value.trim().toUpperCase(),
+      propiedadNumero: item.propiedadNumero.value.trim().toUpperCase(),
       propiedadClave: item.propiedadClave.value,
       precioBaseComponente: numero(item.base.value),
       montoComponente: numero(item.monto.value)
