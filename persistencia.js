@@ -28,6 +28,7 @@
       limpiarBorradorActivoLocal();
       setTimeout(async () => {
         await restaurarComponentesUI([], { tipo: 'AUTOMATICA', promocionNombre: '' });
+        window.solicitudVentaExtras?.restaurarEstadoExpediente?.({ documentos: {}, firmas: {} });
         actualizarSeccionesPorComponentes();
       }, 0);
     });
@@ -105,6 +106,16 @@
     }
   }
 
+  async function guardarEstadoActual() {
+    if (restaurando) return false;
+    const folio = obtenerFolioActual();
+    const itemId = obtenerItemIdActual();
+    if (!folio || !itemId) return false;
+    await guardarEstadoServidor(folio, itemId);
+    guardarBorradorActivoLocal(folio, itemId);
+    return true;
+  }
+
   function capturarEstado() {
     const form = document.getElementById('solicitudForm');
     const controles = {};
@@ -129,6 +140,11 @@
       distribucion: {
         tipo: document.getElementById('distribucionTipoUI')?.value || 'AUTOMATICA',
         promocionNombre: document.getElementById('promocionNombreUI')?.value?.trim() || ''
+      },
+      expediente: window.solicitudVentaExtras?.capturarEstadoExpediente?.() || {
+        version: 1,
+        documentos: {},
+        firmas: {}
       }
     };
   }
@@ -166,6 +182,7 @@
       const estado = data.estado || {};
       aplicarControles(estado.controles || {});
       await restaurarComponentesUI(estado.componentes || [], estado.distribucion || {});
+      window.solicitudVentaExtras?.restaurarEstadoExpediente?.(estado.expediente || { documentos: {}, firmas: {} });
 
       if (typeof borradorActual !== 'undefined') {
         borradorActual.itemId = String(data.itemId || referencia.itemId || '');
@@ -442,4 +459,8 @@
       console.warn('No fue posible limpiar el apuntador local del borrador:', error);
     }
   }
+
+  window.solicitudVentaPersistencia = {
+    guardarEstadoActual
+  };
 })();
