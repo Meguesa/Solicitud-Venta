@@ -32,4 +32,30 @@ document.addEventListener("DOMContentLoaded", () => {
   script.src = "extras.js";
   script.defer = true;
   document.body.appendChild(script);
+
+  // Los indicadores de documentos son propiedad del proceso de carga de archivos.
+  // Un Guardar borrador posterior no debe regresarlos a false solo porque ya no existen los checkboxes antiguos.
+  setTimeout(() => {
+    const originalConstruirPayload = window.construirPayloadBorrador;
+    if (typeof originalConstruirPayload === "function" && !window.__solicitudPayloadDocumentosProtegido) {
+      window.construirPayloadBorrador = function () {
+        const payload = originalConstruirPayload();
+        delete payload.documentoIdTitular;
+        delete payload.documentoIdSustituto;
+        delete payload.documentoComprobanteDomicilio;
+        delete payload.documentoComprobantePago;
+        return payload;
+      };
+      window.__solicitudPayloadDocumentosProtegido = true;
+    }
+  }, 0);
+
+  // Forzar el orden final solicitado: Documentacion -> Firmas -> acciones.
+  setTimeout(() => {
+    const documentos = document.getElementById("documentosSection");
+    const firmas = document.getElementById("firmasSection");
+    if (documentos && firmas && documentos.parentElement === firmas.parentElement) {
+      firmas.parentElement.insertBefore(documentos, firmas);
+    }
+  }, 250);
 });
