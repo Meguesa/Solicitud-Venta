@@ -60,7 +60,7 @@
   function crearCeldaDocumento(titulo, baseId, tipo, multiple) {
     const multipleAttr = multiple ? " multiple" : "";
     return `
-      <div class="upload-card" data-document-type="${tipo}" data-base-id="${baseId}">
+      <div class="upload-card" data-document-type="${tipo}" data-base-id="${baseId}" data-archivo-cargado="0">
         <strong>${titulo}</strong>
         <div class="upload-actions">
           <label class="file-button">
@@ -90,11 +90,15 @@
     card.dataset.uploadedKeys = "";
 
     if (!archivos.length) {
-      estado.textContent = "Sin archivo seleccionado";
+      if (card.dataset.archivoCargado === "1") {
+        if (estado) estado.textContent = "Documento ya cargado en el expediente";
+      } else if (estado) {
+        estado.textContent = "Sin archivo seleccionado";
+      }
       return;
     }
 
-    estado.textContent = archivos.map((file) => file.name).join(", ");
+    if (estado) estado.textContent = archivos.map((file) => file.name).join(", ");
   }
 
   function obtenerArchivosCard(card) {
@@ -139,7 +143,7 @@
           <button type="button" class="signature-clear" data-clear-signature="${id}">Limpiar firma</button>
         </div>
         <canvas id="${id}" class="signature-canvas" aria-label="${titulo}"></canvas>
-        <small>Firma dentro del recuadro usando dedo, mouse o lápiz digital.</small>
+        <small data-signature-status="${tipo}">Firma dentro del recuadro usando dedo, mouse o lápiz digital.</small>
       </div>`;
   }
 
@@ -154,6 +158,7 @@
       tipo,
       dibujando: false,
       tieneFirma: false,
+      yaCargada: false,
       version: 0,
       uploadedVersion: -1
     };
@@ -176,6 +181,8 @@
       canvas.setPointerCapture(event.pointerId);
       const p = punto(event);
       state.dibujando = true;
+      state.yaCargada = false;
+      actualizarEstadoFirmaVisual(state, "Firma modificada; se actualizará al guardar.");
       ctx.beginPath();
       ctx.moveTo(p.x, p.y);
     });
@@ -220,8 +227,26 @@
     state.ctx.fillStyle = "#ffffff";
     state.ctx.fillRect(0, 0, state.canvas.width, state.canvas.height);
     state.tieneFirma = false;
+    state.yaCargada = false;
     state.version += 1;
     state.uploadedVersion = -1;
+    actualizarEstadoFirmaVisual(state, "Firma eliminada. Debe firmarse nuevamente antes de validar.");
+  }
+
+  function firmaDisponible(state) {
+    return Boolean(state?.tieneFirma || state?.yaCargada);
+  }
+
+  function actualizarEstadoFirmaVisual(state, texto = "") {
+    const status = document.querySelector(`[data-signature-status="${state.tipo}"]`);
+    if (!status) return;
+    if (texto) {
+      status.textContent = texto;
+    } else if (state.yaCargada) {
+      status.textContent = "Firma ya guardada en el expediente. No es necesario volver a firmar.";
+    } else {
+      status.textContent = "Firma dentro del recuadro usando dedo, mouse o lápiz digital.";
+    }
   }
 
   function interceptarGuardado() {
@@ -239,6 +264,7 @@
 
       try {
         await subirPendientes(folio, false);
+        await refrescarEstadoPersistente();
       } catch (error) {
         console.error("Error al guardar archivos del expediente:", error);
         mostrarMensajeExtra(`El borrador se guardó, pero faltó cargar un archivo: ${error.message || error}`, "error");
@@ -269,7 +295,7 @@
         return;
       }
 
-      if (!firmas.firmaCliente?.tieneFirma || !firmas.firmaVendedor?.tieneFirma) {
+      if (!firmaDisponible(firmas.firmaCliente) || !firmaDisponible(firmas.firmaVendedor)) {
         mostrarMensajeExtra("La firma del cliente y la firma del vendedor son obligatorias antes de validar la solicitud.", "error");
         document.getElementById("firmasSection")?.scrollIntoView({ behavior: "smooth", block: "center" });
         return;
@@ -290,6 +316,7 @@
       try {
         mostrarMensajeExtra("Guardando documentación y firmas...");
         await subirPendientes(folio, true);
+        await refrescarEstadoPersistente();
         mostrarMensajeExtra("Validación correcta. Documentación y firmas guardadas en el expediente. La solicitud está lista para continuar al flujo de Vo.Bo.", "ok");
       } catch (error) {
         console.error("Error al preparar la solicitud:", error);
@@ -319,12 +346,16 @@
         if (uploaded.has(key)) continue;
         await subirArchivo(folio, tipo, file);
         uploaded.add(key);
+        card.dataset.archivoCargado = "1";
       }
 
       card.dataset.uploadedKeys = Array.from(uploaded).join("|");
       if (archivos.length && uploaded.size) {
         const estado = card.querySelector(".file-status");
         if (estado) estado.textContent = `${archivos.length} archivo(s) cargado(s) en el expediente`;
+      } else if (card.dataset.archivoCargado === "1") {
+        const estado = card.querySelector(".file-status");
+        if (estado) estado.textContent = "Documento ya cargado en el expediente";
       }
     }
 
@@ -338,8 +369,8 @@
     }
 
     for (const state of Object.values(firmas)) {
-      if (!state.tieneFirma) throw new Error("Falta una firma obligatoria.");
-      if (state.uploadedVersion !== state.version) await subirFirma(folio, state);
+      if (!firmaDisponible(state)) throw new Error("Falta una firma obligatoria.");
+      if (state.tieneFirma && state.uploadedVersion !== state.version) await subirFirma(folio, state);
     }
   }
 
@@ -357,6 +388,8 @@
     const file = new File([blob], `${state.tipo}.png`, { type: "image/png", lastModified: Date.now() });
     await subirArchivo(folio, state.tipo, file);
     state.uploadedVersion = state.version;
+    state.yaCargada = true;
+    actualizarEstadoFirmaVisual(state);
   }
 
   async function subirArchivo(folio, tipoDocumento, file) {
@@ -381,6 +414,59 @@
     return resultado;
   }
 
+  function capturarEstadoExpediente() {
+    const documentos = {};
+    document.querySelectorAll("#documentosSection .upload-card").forEach((card) => {
+      const tipo = card.dataset.documentType || "";
+      if (!tipo) return;
+      const tieneCarga = card.dataset.archivoCargado === "1" || Boolean((card.dataset.uploadedKeys || "").trim());
+      documentos[tipo] = tieneCarga;
+    });
+
+    const firmasEstado = {};
+    Object.values(firmas).forEach((state) => {
+      firmasEstado[state.tipo] = firmaDisponible(state);
+    });
+
+    return {
+      version: 1,
+      documentos,
+      firmas: firmasEstado
+    };
+  }
+
+  function restaurarEstadoExpediente(estado = {}) {
+    const documentos = estado?.documentos && typeof estado.documentos === "object" ? estado.documentos : {};
+    document.querySelectorAll("#documentosSection .upload-card").forEach((card) => {
+      const tipo = card.dataset.documentType || "";
+      const cargado = Boolean(documentos[tipo]);
+      card.dataset.archivoCargado = cargado ? "1" : "0";
+      card.dataset.uploadedKeys = "";
+      const status = card.querySelector(".file-status");
+      if (status) status.textContent = cargado ? "Documento ya cargado en el expediente" : "Sin archivo seleccionado";
+    });
+
+    const firmasGuardadas = estado?.firmas && typeof estado.firmas === "object" ? estado.firmas : {};
+    Object.values(firmas).forEach((state) => {
+      const cargada = Boolean(firmasGuardadas[state.tipo]);
+      state.yaCargada = cargada;
+      state.tieneFirma = false;
+      state.uploadedVersion = cargada ? state.version : -1;
+      ajustarCanvas(state);
+      actualizarEstadoFirmaVisual(state);
+    });
+  }
+
+  async function refrescarEstadoPersistente() {
+    const api = window.solicitudVentaPersistencia;
+    if (!api || typeof api.guardarEstadoActual !== "function") return;
+    try {
+      await api.guardarEstadoActual();
+    } catch (error) {
+      console.warn("No fue posible actualizar el estado reanudable del expediente:", error);
+    }
+  }
+
   function mostrarMensajeExtra(texto, tipo = "") {
     if (typeof window.mostrarMensaje === "function") {
       window.mostrarMensaje(texto, tipo);
@@ -391,4 +477,9 @@
     mensaje.textContent = texto;
     mensaje.className = `form-message ${tipo}`.trim();
   }
+
+  window.solicitudVentaExtras = {
+    capturarEstadoExpediente,
+    restaurarEstadoExpediente
+  };
 })();
