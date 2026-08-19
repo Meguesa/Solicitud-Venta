@@ -1,11 +1,17 @@
 (() => {
   const STORAGE_PREFIX = "solicitudVenta:borradorActivo:v1:";
+  const ESTADO_ENDPOINT = "/api/solicitud-venta/estado-solicitud.php";
   const CAMPOS_MONEDA = new Set([
     "precioTotal", "enganche", "saldo", "importeMensualidad", "precioLista",
     "bonificacion", "montoFinanciar", "totalPagar"
   ]);
   let inicializado = false;
   let enviando = false;
+  let seguimientoTimer = null;
+  let seguimientoFolio = "";
+  let ultimoEstatus = "";
+
+  instalarRedireccionCargaEstado();
 
   function iniciar() {
     if (inicializado) return;
@@ -20,14 +26,36 @@
     inicializado = true;
     insertarSelectorModalidad(firmasSection);
     btnValidate.addEventListener("click", interceptarFirmaRemota, true);
-    document.getElementById("btnReset")?.addEventListener("click", () => setTimeout(restablecer, 0));
+    document.getElementById("btnReset")?.addEventListener("click", () => {
+      detenerSeguimiento();
+      setTimeout(restablecer, 0);
+    });
     actualizarModalidad();
+    setTimeout(iniciarSeguimientoDesdeStorage, 1200);
   }
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => setTimeout(iniciar, 0));
   } else {
     setTimeout(iniciar, 0);
+  }
+
+  function instalarRedireccionCargaEstado() {
+    if (window.__solicitudFirmaRemotaFetchEstadoEnvuelto) return;
+    const fetchAnterior = window.fetch.bind(window);
+
+    window.fetch = function (input, init = {}) {
+      try {
+        const url = typeof input === "string" ? input : String(input?.url || "");
+        if (url.includes("/api/solicitud-venta/estado-borrador.php") && String(init?.method || "GET").toUpperCase() === "POST") {
+          const body = typeof init?.body === "string" ? JSON.parse(init.body) : null;
+          if (body?.accion === "cargar") return fetchAnterior(ESTADO_ENDPOINT, init);
+        }
+      } catch (_) {}
+      return fetchAnterior(input, init);
+    };
+
+    window.__solicitudFirmaRemotaFetchEstadoEnvuelto = true;
   }
 
   function insertarSelectorModalidad(section) {
@@ -314,22 +342,181 @@
     if (input) input.value = url;
     if (resultBox) resultBox.hidden = false;
 
-    limpiarBorradorActivoLocal();
-    const guardar = document.getElementById("btnSaveDraft");
-    const validar = document.getElementById("btnValidate");
-    if (guardar) guardar.disabled = true;
-    if (validar) {
-      validar.disabled = true;
-      validar.textContent = "Pendiente de firma";
-    }
-    const pill = document.querySelector(".status-pill");
-    if (pill) pill.textContent = "Pendiente firma";
+    guardarReferenciaLocal(folio);
+    aplicarEstadoVisual("PENDIENTE FIRMA", { folio }, false);
+    iniciarSeguimiento(folio);
 
     mostrarMensaje(
       `Solicitud ${folio} enviada a firma remota. Comparte el enlace seguro con el cliente. Estatus: PENDIENTE FIRMA.`,
       "ok"
     );
     resultBox?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  async function iniciarSeguimientoDesdeStorage() {
+    const referencia = leerReferenciaLocal();
+    if (!referencia?.folio) return;
+
+    try {
+      const data = await consultarEstadoSolicitud(referencia.folio);
+      aplicarRespuestaSeguimiento(data, true);
+      if (String(data.estatus || "").toUpperCase() === "PENDIENTE FIRMA") iniciarSeguimiento(referencia.folio);
+    } catch (error) {
+      console.warn("No fue posible consultar el estado de firma remota:", error);
+    }
+  }
+
+  function iniciarSeguimiento(folio) {
+    if (!folio) return;
+    seguimientoFolio = folio;
+    if (seguimientoTimer) clearInterval(seguimientoTimer);
+
+    seguimientoTimer = setInterval(async () => {
+      try {
+        const data = await consultarEstadoSolicitud(seguimientoFolio);
+        aplicarRespuestaSeguimiento(data, false);
+      } catch (error) {
+        console.warn("Seguimiento de firma remota:", error);
+      }
+    }, 8000);
+  }
+
+  function detenerSeguimiento() {
+    if (seguimientoTimer) clearInterval(seguimientoTimer);
+    seguimientoTimer = null;
+    seguimientoFolio = "";
+    ultimoEstatus = "";
+  }
+
+  async function consultarEstadoSolicitud(folio) {
+    const token = await window.solicitudVentaAuth.getBackendAccessToken();
+    if (!token) throw new Error("No fue posible obtener autorización para consultar el estado.");
+
+    const response = await fetch(ESTADO_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ accion: "cargar", folio })
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.ok) throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    return data;
+  }
+
+  function aplicarRespuestaSeguimiento(data, desdeCarga) {
+    const estatus = String(data?.estatus || "BORRADOR").trim().toUpperCase();
+    const expediente = data?.estado?.expediente;
+    if (expediente && window.solicitudVentaExtras?.restaurarEstadoExpediente) {
+      window.solicitudVentaExtras.restaurarEstadoExpediente(expediente);
+    }
+
+    aplicarEstadoVisual(estatus, data, desdeCarga);
+    if (estatus !== "PENDIENTE FIRMA") detenerSeguimiento();
+  }
+
+  function aplicarEstadoVisual(estatus, data = null, desdeCarga = false) {
+    const estado = String(estatus || "BORRADOR").trim().toUpperCase();
+    if (estado === "BORRADOR") return;
+
+    bloquearFormulario(estado);
+
+    const pill = document.querySelector(".status-pill");
+    if (pill) pill.textContent = estado;
+
+    const validar = document.getElementById("btnValidate");
+    if (validar) {
+      validar.disabled = true;
+      validar.textContent = estado === "PENDIENTE FIRMA" ? "Pendiente de firma" : "En Vo.Bo.";
+    }
+
+    const cambio = ultimoEstatus !== estado;
+    ultimoEstatus = estado;
+    const folio = data?.folio || obtenerFolioActual() || seguimientoFolio;
+
+    if (estado === "PENDIENTE FIRMA") {
+      if (cambio || desdeCarga) {
+        mostrarMensaje(`Solicitud ${folio} pendiente de firma del cliente. La información queda en modo solo lectura.`, "ok");
+      }
+      return;
+    }
+
+    if (estado === "PENDIENTE VOBO") {
+      const cardCliente = document.querySelector('[data-signature-type="FIRMA_CLIENTE"]');
+      cardCliente?.classList.remove("remote-signature-disabled");
+      const statusCliente = cardCliente?.querySelector('[data-signature-status="FIRMA_CLIENTE"]');
+      if (statusCliente) statusCliente.textContent = "Firma remota recibida y guardada en el expediente.";
+      if (cambio || desdeCarga) {
+        mostrarMensaje(`Firma remota recibida para ${folio}. La solicitud fue enviada a Vo.Bo. y permanece disponible en modo solo lectura.`, "ok");
+      }
+      return;
+    }
+
+    if (cambio || desdeCarga) {
+      mostrarMensaje(`Solicitud ${folio} en estatus ${estado}. La información se mantiene en modo solo lectura.`, "ok");
+    }
+  }
+
+  function bloquearFormulario(estatus) {
+    const form = document.getElementById("solicitudForm");
+    if (!form) return;
+
+    form.querySelectorAll("input, select, textarea, button").forEach((control) => {
+      if (control.id === "btnReset" || control.id === "btnCopiarFirmaRemota") return;
+      control.disabled = true;
+    });
+
+    const reset = document.getElementById("btnReset");
+    if (reset) {
+      reset.disabled = false;
+      reset.textContent = "Nueva solicitud";
+    }
+
+    const guardar = document.getElementById("btnSaveDraft");
+    if (guardar) guardar.disabled = true;
+
+    const validar = document.getElementById("btnValidate");
+    if (validar) validar.disabled = true;
+
+    const copiar = document.getElementById("btnCopiarFirmaRemota");
+    if (copiar) copiar.disabled = false;
+
+    document.body.dataset.solicitudEstatus = estatus;
+  }
+
+  function guardarReferenciaLocal(folio) {
+    if (!/^SV-\d{4}-\d+$/.test(String(folio || ""))) return;
+    const key = claveStorage();
+    if (!key) return;
+    const itemId = String(Number(String(folio).split("-").pop() || 0) || "");
+    if (!itemId) return;
+
+    try {
+      localStorage.setItem(key, JSON.stringify({ folio, itemId, actualizado: new Date().toISOString() }));
+    } catch (error) {
+      console.warn("No fue posible conservar la solicitud en seguimiento:", error);
+    }
+  }
+
+  function leerReferenciaLocal() {
+    const key = claveStorage();
+    if (!key) return null;
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!/^SV-\d{4}-\d+$/.test(String(data?.folio || ""))) return null;
+      return data;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function claveStorage() {
+    const usuario = window.solicitudVentaAuth?.getUser?.();
+    const correo = String(usuario?.username || document.getElementById("userEmail")?.textContent || "").trim().toLowerCase();
+    return correo ? `${STORAGE_PREFIX}${correo}` : "";
   }
 
   async function copiarEnlace() {
@@ -348,26 +535,29 @@
 
   function restablecer() {
     const modalidad = document.getElementById("modalidadFirma");
-    if (modalidad) modalidad.value = "PRESENCIAL";
+    if (modalidad) {
+      modalidad.disabled = false;
+      modalidad.value = "PRESENCIAL";
+    }
     const resultBox = document.getElementById("firmaRemotaResultado");
     if (resultBox) resultBox.hidden = true;
     const url = document.getElementById("firmaRemotaUrl");
     if (url) url.value = "";
+
+    const form = document.getElementById("solicitudForm");
+    form?.querySelectorAll("input, select, textarea, button").forEach((control) => {
+      control.disabled = false;
+    });
+
+    const reset = document.getElementById("btnReset");
+    if (reset) reset.textContent = "Limpiar";
+    delete document.body.dataset.solicitudEstatus;
     actualizarModalidad();
   }
 
   function obtenerFolioActual() {
     const folio = document.querySelector(".folio-box strong")?.textContent?.trim() || "";
     return /^SV-\d{4}-\d+$/.test(folio) ? folio : "";
-  }
-
-  function limpiarBorradorActivoLocal() {
-    const usuario = window.solicitudVentaAuth?.getUser?.();
-    const correo = String(usuario?.username || document.getElementById("userEmail")?.textContent || "").trim().toLowerCase();
-    if (!correo) return;
-    try {
-      localStorage.removeItem(`${STORAGE_PREFIX}${correo}`);
-    } catch (_) {}
   }
 
   function mostrarMensaje(texto, tipo = "") {
