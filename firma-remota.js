@@ -1,5 +1,9 @@
 (() => {
   const STORAGE_PREFIX = "solicitudVenta:borradorActivo:v1:";
+  const CAMPOS_MONEDA = new Set([
+    "precioTotal", "enganche", "saldo", "importeMensualidad", "precioLista",
+    "bonificacion", "montoFinanciar", "totalPagar"
+  ]);
   let inicializado = false;
   let enviando = false;
 
@@ -109,7 +113,7 @@
       }
 
       mostrarMensaje("Generando enlace seguro para firma del cliente...");
-      const resultado = await iniciarFirmaRemota(folio);
+      const resultado = await iniciarFirmaRemota(folio, capturarDetalleSolicitud());
       finalizarEnvioRemoto(resultado);
     } catch (error) {
       console.error("Error al iniciar firma remota:", error);
@@ -202,7 +206,7 @@
     if (!response.ok || !data?.ok) throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
   }
 
-  async function iniciarFirmaRemota(folio) {
+  async function iniciarFirmaRemota(folio, detalleSolicitud) {
     const token = await window.solicitudVentaAuth.getBackendAccessToken();
     if (!token) throw new Error("No fue posible obtener autorización para iniciar la firma remota.");
 
@@ -212,11 +216,94 @@
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`
       },
-      body: JSON.stringify({ folio })
+      body: JSON.stringify({ folio, detalleSolicitud })
     });
     const data = await response.json().catch(() => null);
     if (!response.ok || !data?.ok) throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
     return data;
+  }
+
+  function capturarDetalleSolicitud() {
+    const form = document.getElementById("solicitudForm");
+    if (!form) return [];
+
+    const omitidas = new Set(["componentesSection", "documentosSection", "firmasSection"]);
+    const secciones = [];
+
+    form.querySelectorAll("section.form-section").forEach((section) => {
+      if (omitidas.has(section.id) || !esVisible(section)) return;
+      const titulo = section.querySelector(".section-title h3")?.textContent?.trim() || "Información";
+      const campos = [];
+
+      section.querySelectorAll("input, select, textarea").forEach((control) => {
+        if (!control.id || !esVisible(control)) return;
+        if (control instanceof HTMLInputElement && ["file", "button", "submit", "reset", "hidden"].includes(control.type)) return;
+        if (control.id === "modalidadFirma") return;
+
+        const etiqueta = obtenerEtiqueta(control);
+        if (!etiqueta) return;
+        const dato = obtenerValorControl(control);
+        if (!dato) return;
+        campos.push({ id: control.id, etiqueta, valor: dato.valor, tipo: dato.tipo });
+      });
+
+      if (campos.length) secciones.push({ titulo, campos });
+    });
+
+    const documentos = capturarDocumentacion();
+    if (documentos.campos.length) secciones.push(documentos);
+
+    return secciones;
+  }
+
+  function capturarDocumentacion() {
+    const campos = [];
+    document.querySelectorAll("#documentosSection .upload-card").forEach((card) => {
+      const titulo = card.querySelector("strong")?.textContent?.trim() || card.dataset.documentType || "Documento";
+      const archivosSeleccionados = Array.from(card.querySelectorAll('input[type="file"]')).some((input) => Boolean(input.files?.length));
+      const recibido = card.dataset.archivoCargado === "1" || archivosSeleccionados;
+      if (recibido) campos.push({ etiqueta: titulo, valor: "RECIBIDO", tipo: "texto" });
+    });
+    const otros = document.getElementById("documentoOtros")?.value?.trim();
+    if (otros) campos.push({ etiqueta: "Descripción de otros documentos", valor: otros, tipo: "texto" });
+    return { titulo: "Documentación", campos };
+  }
+
+  function esVisible(elemento) {
+    if (!elemento || elemento.closest("[hidden]")) return false;
+    const estilo = window.getComputedStyle(elemento);
+    return estilo.display !== "none" && estilo.visibility !== "hidden";
+  }
+
+  function obtenerEtiqueta(control) {
+    const label = control.closest("label");
+    if (label) {
+      const copia = label.cloneNode(true);
+      copia.querySelectorAll("input, select, textarea, button, small").forEach((node) => node.remove());
+      const texto = copia.textContent.replace(/\s+/g, " ").trim();
+      if (texto) return texto;
+    }
+    return control.getAttribute("aria-label")?.trim() || control.id;
+  }
+
+  function obtenerValorControl(control) {
+    if (control instanceof HTMLInputElement && (control.type === "checkbox" || control.type === "radio")) {
+      return { valor: control.checked ? "SI" : "NO", tipo: "booleano" };
+    }
+
+    let valor = "";
+    if (control instanceof HTMLSelectElement) {
+      valor = control.selectedOptions?.[0]?.textContent?.trim() || control.value.trim();
+      if (!control.value) valor = "";
+    } else {
+      valor = String(control.value || "").trim();
+    }
+    if (!valor) return null;
+
+    if (control instanceof HTMLInputElement && control.type === "date") return { valor, tipo: "fecha" };
+    if (CAMPOS_MONEDA.has(control.id)) return { valor, tipo: "moneda" };
+    if (control instanceof HTMLInputElement && control.type === "number") return { valor, tipo: "numero" };
+    return { valor, tipo: "texto" };
   }
 
   function finalizarEnvioRemoto(resultado) {
