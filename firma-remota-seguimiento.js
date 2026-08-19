@@ -12,6 +12,7 @@
       return;
     }
 
+    sembrarFolioDesdeQuery();
     capturarUrlActual();
     setTimeout(consultar, 900);
     timer = setInterval(consultar, 5000);
@@ -140,6 +141,29 @@
     }
 
     document.body.dataset.solicitudEstatus = estatus;
+  }
+
+  function sembrarFolioDesdeQuery() {
+    const folio = String(new URLSearchParams(location.search).get("folio") || "").trim().toUpperCase();
+    if (!/^SV-\d{4}-\d+$/.test(folio)) return;
+
+    const key = claveStorage();
+    if (!key) return;
+    const itemId = String(Number(folio.split("-").pop() || 0) || "");
+    if (!itemId) return;
+
+    try {
+      const raw = localStorage.getItem(key);
+      const actual = raw ? JSON.parse(raw) : {};
+      localStorage.setItem(key, JSON.stringify({
+        ...actual,
+        folio,
+        itemId,
+        actualizado: new Date().toISOString()
+      }));
+    } catch (error) {
+      console.warn("No fue posible preparar la recuperación por folio:", error);
+    }
   }
 
   function capturarUrlActual() {
