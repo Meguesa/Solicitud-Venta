@@ -12,6 +12,7 @@
     }
 
     inicializado = true;
+    instalarValidadorSeguro();
     envolverGuardado();
     interceptarValidacionComponentes(form);
   }
@@ -20,6 +21,59 @@
     document.addEventListener('DOMContentLoaded', () => setTimeout(iniciar, 0));
   } else {
     setTimeout(iniciar, 0);
+  }
+
+  function instalarValidadorSeguro() {
+    window.solicitudVentaComponentesValidar = function () {
+      const componentes = typeof window.solicitudVentaComponentesObtener === 'function'
+        ? window.solicitudVentaComponentesObtener()
+        : [];
+
+      if (!Array.isArray(componentes) || !componentes.length) {
+        return { ok: false, message: 'Agrega al menos un componente.' };
+      }
+
+      const cards = Array.from(document.querySelectorAll('#componentesContainer .component-card'));
+
+      for (let index = 0; index < componentes.length; index += 1) {
+        const componente = componentes[index] || {};
+        if (!componente.tipoSolicitud || !componente.tipoOperacion) {
+          return { ok: false, message: 'Todos los componentes deben tener tipo y operación.' };
+        }
+
+        const card = cards[index];
+        if (!card) {
+          return { ok: false, message: 'No fue posible validar uno de los componentes de la venta.' };
+        }
+
+        const invalido = Array.from(card.querySelectorAll('input, select, textarea')).find((control) =>
+          typeof control.checkValidity === 'function' && !control.checkValidity()
+        );
+
+        if (invalido) {
+          invalido.reportValidity?.();
+          return { ok: false, message: `Faltan datos obligatorios en el componente ${index + 1}.` };
+        }
+      }
+
+      const totalVenta = numero(document.getElementById('precioTotal')?.value);
+      const totalAsignado = componentes.reduce((sum, item) => sum + numero(item?.montoComponente), 0);
+      if (Math.abs(totalVenta - totalAsignado) > 0.009) {
+        return { ok: false, message: 'La suma de los montos asignados debe ser igual al precio total de la venta.' };
+      }
+
+      const distribucion = document.getElementById('distribucionTipoUI')?.value || 'AUTOMATICA';
+      if (distribucion === 'MANUAL_PROMOCION' && !document.getElementById('promocionNombreUI')?.value?.trim()) {
+        return { ok: false, message: 'Captura el nombre de la promoción para una distribución manual.' };
+      }
+
+      return { ok: true };
+    };
+  }
+
+  function numero(value) {
+    const n = Number(value || 0);
+    return Number.isFinite(n) ? n : 0;
   }
 
   function envolverGuardado() {
