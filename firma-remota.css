@@ -60,6 +60,46 @@
   background: #f2f2f2;
 }
 
+.remote-signature-management {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: -4px 0 18px;
+  padding: 14px;
+  border: 1px solid #ddd3c5;
+  border-radius: 12px;
+  background: #fffaf2;
+}
+
+.remote-signature-management[hidden] {
+  display: none;
+}
+
+.remote-signature-management-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.remote-signature-management-copy small {
+  color: #685b4c;
+}
+
+.remote-signature-management-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.remote-signature-management-actions button {
+  min-width: 145px;
+}
+
+.remote-signature-cancel {
+  border-color: #d8b8b8;
+  background: #fff6f6;
+}
+
 @media (max-width: 760px) {
   .remote-signature-mode,
   .remote-signature-link-row {
@@ -67,6 +107,20 @@
   }
 
   .remote-signature-link-row button {
+    width: 100%;
+  }
+
+  .remote-signature-management {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .remote-signature-management-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .remote-signature-management-actions button {
     width: 100%;
   }
 }
