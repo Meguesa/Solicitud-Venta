@@ -1,0 +1,209 @@
+(() => {
+  const STORAGE_PREFIX = "solicitudVenta:borradorActivo:v1:";
+  const PUBLIC_ENDPOINT = "/api/solicitud-venta/firma-remota-publica.php";
+  const PRIVATE_ENDPOINT = "/api/solicitud-venta/estado-solicitud.php";
+  let timer = null;
+  let consultando = false;
+  let ultimoEstatus = "";
+
+  function iniciar() {
+    if (!window.solicitudVentaAuth) {
+      setTimeout(iniciar, 100);
+      return;
+    }
+
+    capturarUrlActual();
+    setTimeout(consultar, 900);
+    timer = setInterval(consultar, 5000);
+    window.addEventListener("focus", consultar);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) consultar();
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", iniciar);
+  } else {
+    iniciar();
+  }
+
+  async function consultar() {
+    if (consultando) return;
+
+    const referencia = leerReferencia();
+    const folio = obtenerFolioActual() || referencia?.folio || "";
+    if (!/^SV-\d{4}-\d+$/.test(folio)) return;
+
+    capturarUrlActual();
+    consultando = true;
+    try {
+      const referenciaActual = leerReferencia();
+      let data = null;
+      const tokenFirma = extraerToken(referenciaActual?.firmaUrl || document.getElementById("firmaRemotaUrl")?.value || "");
+
+      if (tokenFirma) {
+        try {
+          data = await consultarPublico(tokenFirma);
+        } catch (error) {
+          console.warn("Seguimiento firma remota por token:", error);
+        }
+      }
+
+      if (!data || !data.ok) {
+        data = await consultarPrivado(folio);
+      }
+
+      aplicarEstado(data, folio);
+    } catch (error) {
+      console.warn("No fue posible actualizar el estado de la firma remota:", error);
+    } finally {
+      consultando = false;
+    }
+  }
+
+  async function consultarPublico(token) {
+    const response = await fetch(PUBLIC_ENDPOINT, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accion: "cargar", token })
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.ok) throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    return data;
+  }
+
+  async function consultarPrivado(folio) {
+    const accessToken = await window.solicitudVentaAuth.getBackendAccessToken();
+    if (!accessToken) throw new Error("No fue posible obtener autorización para consultar la solicitud.");
+
+    const response = await fetch(PRIVATE_ENDPOINT, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({ accion: "cargar", folio })
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.ok) throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    return data;
+  }
+
+  function aplicarEstado(data, folio) {
+    let estatus = String(data?.estatus || "").trim().toUpperCase();
+    if (!estatus && data?.firmado) estatus = "PENDIENTE VOBO";
+    if (!estatus) return;
+
+    const cambio = ultimoEstatus !== estatus;
+    ultimoEstatus = estatus;
+
+    if (estatus === "PENDIENTE FIRMA") {
+      bloquear("Pendiente de firma", estatus);
+      const reset = document.getElementById("btnReset");
+      if (reset) reset.textContent = "Nueva solicitud";
+      return;
+    }
+
+    if (estatus === "PENDIENTE VOBO" || data?.firmado === true) {
+      bloquear("En Vo.Bo.", "PENDIENTE VOBO");
+
+      const cardCliente = document.querySelector('[data-signature-type="FIRMA_CLIENTE"]');
+      cardCliente?.classList.remove("remote-signature-disabled");
+      const statusCliente = cardCliente?.querySelector('[data-signature-status="FIRMA_CLIENTE"]');
+      if (statusCliente) statusCliente.textContent = "Firma remota recibida y guardada en el expediente.";
+
+      const reset = document.getElementById("btnReset");
+      if (reset) reset.textContent = "Nueva solicitud";
+
+      if (cambio) {
+        mostrarMensaje(`Firma remota recibida para ${folio}. La solicitud fue enviada a Vo.Bo. y permanece disponible en modo solo lectura.`, "ok");
+      }
+      return;
+    }
+
+    bloquear(estatus, estatus);
+  }
+
+  function bloquear(textoBoton, estatus) {
+    const pill = document.querySelector(".status-pill");
+    if (pill) pill.textContent = estatus;
+
+    const guardar = document.getElementById("btnSaveDraft");
+    if (guardar) guardar.disabled = true;
+
+    const validar = document.getElementById("btnValidate");
+    if (validar) {
+      validar.disabled = true;
+      validar.textContent = textoBoton;
+    }
+
+    document.body.dataset.solicitudEstatus = estatus;
+  }
+
+  function capturarUrlActual() {
+    const url = document.getElementById("firmaRemotaUrl")?.value?.trim() || "";
+    if (!url || !extraerToken(url)) return;
+
+    const key = claveStorage();
+    if (!key) return;
+    try {
+      const raw = localStorage.getItem(key);
+      const actual = raw ? JSON.parse(raw) : {};
+      const folio = obtenerFolioActual() || actual?.folio || "";
+      if (!/^SV-\d{4}-\d+$/.test(folio)) return;
+      const itemId = actual?.itemId || String(Number(folio.split("-").pop() || 0) || "");
+      localStorage.setItem(key, JSON.stringify({
+        ...actual,
+        folio,
+        itemId,
+        firmaUrl: url,
+        actualizado: new Date().toISOString()
+      }));
+    } catch (error) {
+      console.warn("No fue posible conservar el enlace de seguimiento:", error);
+    }
+  }
+
+  function extraerToken(url) {
+    try {
+      return new URL(url, location.origin).searchParams.get("token") || "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function leerReferencia() {
+    const key = claveStorage();
+    if (!key) return null;
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function claveStorage() {
+    const usuario = window.solicitudVentaAuth?.getUser?.();
+    const correo = String(usuario?.username || document.getElementById("userEmail")?.textContent || "").trim().toLowerCase();
+    return correo ? `${STORAGE_PREFIX}${correo}` : "";
+  }
+
+  function obtenerFolioActual() {
+    const folio = document.querySelector(".folio-box strong")?.textContent?.trim() || "";
+    return /^SV-\d{4}-\d+$/.test(folio) ? folio : "";
+  }
+
+  function mostrarMensaje(texto, tipo = "") {
+    if (typeof window.mostrarMensaje === "function") {
+      window.mostrarMensaje(texto, tipo);
+      return;
+    }
+    const mensaje = document.getElementById("formMessage");
+    if (!mensaje) return;
+    mensaje.textContent = texto;
+    mensaje.className = `form-message ${tipo}`.trim();
+  }
+})();
