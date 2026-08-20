@@ -150,10 +150,14 @@
   }
 
   async function restaurarBorradorActivo() {
-    if (restaurando || obtenerFolioActual()) return;
+    if (restaurando) return;
 
-    const referencia = leerBorradorActivoLocal();
+    const referencia = referenciaSolicitada();
     if (!referencia?.folio || !referencia?.itemId) return;
+
+    // Si ya existe un borrador distinto cargado en memoria no lo sobreescribimos.
+    const folioMemoria = obtenerFolioActual();
+    if (folioMemoria && folioMemoria !== referencia.folio) return;
 
     restaurando = true;
     try {
@@ -170,7 +174,11 @@
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ accion: 'cargar', folio: referencia.folio })
+        body: JSON.stringify({
+          accion: 'cargar',
+          folio: referencia.folio,
+          itemId: referencia.itemId
+        })
       });
 
       const data = await response.json().catch(() => null);
@@ -190,10 +198,12 @@
       }
       if (typeof window.actualizarFolio === 'function') window.actualizarFolio(data.folio || referencia.folio);
 
+      guardarBorradorActivoLocal(data.folio || referencia.folio, data.itemId || referencia.itemId);
       recalcularDespuesDeRestaurar();
       if (typeof window.mostrarMensaje === 'function') {
+        const advertencia = data.warning ? ` ${data.warning}` : '';
         window.mostrarMensaje(
-          `Borrador ${data.folio || referencia.folio} recuperado. Puedes continuar capturando y volver a guardarlo sin crear otro folio.`,
+          `Borrador ${data.folio || referencia.folio} recuperado. Puedes continuar capturando y volver a guardarlo sin crear otro folio.${advertencia}`,
           'ok'
         );
       }
@@ -205,6 +215,24 @@
     } finally {
       restaurando = false;
     }
+  }
+
+  function referenciaSolicitada() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const folio = String(params.get('folio') || '').trim().toUpperCase();
+      const itemId = String(params.get('itemId') || '').trim();
+      if (/^SV-\d{4}-\d+$/.test(folio)) {
+        if (/^\d+$/.test(itemId) && Number(itemId) > 0) {
+          return { folio, itemId, origen: 'query' };
+        }
+        const derivado = String(Number(folio.split('-').pop() || 0) || '');
+        if (/^\d+$/.test(derivado) && Number(derivado) > 0) {
+          return { folio, itemId: derivado, origen: 'query-fallback' };
+        }
+      }
+    } catch (_) {}
+    return leerBorradorActivoLocal();
   }
 
   function aplicarControles(controles) {
@@ -403,6 +431,10 @@
     if (typeof borradorActual !== 'undefined' && /^SV-\d{4}-\d+$/.test(String(borradorActual.folio || ''))) {
       return String(borradorActual.folio);
     }
+    try {
+      const folioUrl = String(new URLSearchParams(window.location.search).get('folio') || '').trim().toUpperCase();
+      if (/^SV-\d{4}-\d+$/.test(folioUrl)) return folioUrl;
+    } catch (_) {}
     const folio = document.querySelector('.folio-box strong')?.textContent?.trim() || '';
     return /^SV-\d{4}-\d+$/.test(folio) ? folio : '';
   }
@@ -411,6 +443,10 @@
     if (typeof borradorActual !== 'undefined' && /^\d+$/.test(String(borradorActual.itemId || ''))) {
       return String(borradorActual.itemId);
     }
+    try {
+      const itemIdUrl = String(new URLSearchParams(window.location.search).get('itemId') || '').trim();
+      if (/^\d+$/.test(itemIdUrl) && Number(itemIdUrl) > 0) return itemIdUrl;
+    } catch (_) {}
     const folio = obtenerFolioActual();
     if (!folio) return '';
     return String(Number(folio.split('-').pop() || 0) || '');
