@@ -20,6 +20,7 @@
     }
 
     inicializado = true;
+    integrarVendedorEnGeneral(form);
     crearControles(form, banner, actions);
     observarCambios(form);
     mostrarPagina(0, false);
@@ -29,6 +30,28 @@
     document.addEventListener('DOMContentLoaded', () => setTimeout(iniciar, 0));
   } else {
     setTimeout(iniciar, 0);
+  }
+
+  function integrarVendedorEnGeneral(form) {
+    const vendedor = document.getElementById('vendedorNombre');
+    const correo = document.getElementById('vendedorCorreo');
+    const bloque = vendedor?.closest('.form-section');
+    if (!vendedor || !correo || !bloque) return;
+
+    const general = Array.from(form.children).find((element) =>
+      element instanceof HTMLElement
+      && element.matches('section.form-section')
+      && Boolean(element.querySelector('#lugar'))
+      && Boolean(element.querySelector('#fechaSolicitud'))
+    );
+    if (!general) return;
+
+    const grid = bloque.querySelector('.form-grid');
+    if (!grid) return;
+
+    grid.classList.add('wizard-vendedor-grid');
+    general.appendChild(grid);
+    bloque.remove();
   }
 
   function crearControles(form, banner, actions) {
@@ -70,11 +93,6 @@
     observer = new MutationObserver((mutations) => {
       if (enResumen) return;
 
-      // El wizard modifica continuamente textos, clases y controles dentro del
-      // formulario. Esos cambios NO deben volver a ejecutar el observer porque
-      // crearían un ciclo de MutationObserver que bloquea el hilo principal.
-      // Solo recalculamos páginas cuando se agrega/elimina una sección completa
-      // o cuando cambia el atributo hidden de una sección del formulario.
       const cambioDePaginas = mutations.some((mutation) => {
         if (mutation.type === 'attributes') {
           const target = mutation.target;
@@ -119,8 +137,6 @@
       if (!element.matches('section.form-section')) return false;
       if (element.hidden) return false;
       if (element.id === 'wizardSummary') return false;
-      // Las secciones históricas Tipo de solicitud y Referencia se conservan en el DOM
-      // para compatibilidad, pero ya no forman parte de la captura actual.
       if (element.querySelector('#tipoSolicitud')) return false;
       if (element.querySelector('#referencia')) return false;
       return true;
