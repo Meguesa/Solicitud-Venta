@@ -18,7 +18,7 @@ $role = htmlspecialchars(portal_vobo_role(), ENT_QUOTES, 'UTF-8');
   <meta name="theme-color" content="#225b8a">
   <title>Vo.Bo. de Solicitudes | Jardines de Juan Pablo</title>
   <link rel="stylesheet" href="/assets/css/account-menu.css">
-  <link rel="stylesheet" href="./vobo.css?v=20260820-2">
+  <link rel="stylesheet" href="./vobo.css?v=20260820-3">
 </head>
 <body>
   <header class="vobo-header">
@@ -93,13 +93,30 @@ $role = htmlspecialchars(portal_vobo_role(), ENT_QUOTES, 'UTF-8');
         <div id="detailFields" class="detail-grid"></div>
       </section>
 
-      <section class="next-step-note">
-        <strong>Siguiente etapa</strong>
-        <p>Primero validaremos que esta pantalla muestre correctamente la solicitud. Después habilitaremos las acciones Aprobar Vo.Bo. y Solicitar corrección.</p>
+      <section class="decision-panel" aria-labelledby="decisionTitle">
+        <div class="decision-copy">
+          <strong id="decisionTitle">Decisión de Vo.Bo.</strong>
+          <p>Aprueba la solicitud si la información es correcta. Si requiere cambios, solicita una corrección indicando el motivo.</p>
+        </div>
+        <div class="decision-actions">
+          <button id="btnSolicitarCorreccion" type="button" class="correction-button">Solicitar corrección</button>
+          <button id="btnAprobarVobo" type="button" class="approve-button">Aprobar Vo.Bo.</button>
+        </div>
+
+        <div id="correctionPanel" class="correction-panel" hidden>
+          <label for="correctionReason">Motivo de corrección</label>
+          <textarea id="correctionReason" rows="4" maxlength="2000" placeholder="Describe exactamente qué debe corregir el vendedor."></textarea>
+          <p class="correction-help">El motivo será obligatorio y quedará registrado en la solicitud.</p>
+          <div class="correction-actions">
+            <button id="btnCancelCorrection" type="button" class="secondary-button">Cancelar</button>
+            <button id="btnConfirmCorrection" type="button" class="correction-confirm-button">Enviar a corrección</button>
+          </div>
+        </div>
       </section>
     </section>
   </main>
 
-  <script src="./vobo.js?v=20260820-2"></script>
+  <script src="./vobo.js?v=20260820-3"></script>
+  <script src="./vobo-acciones.js?v=20260820-1"></script>
 </body>
 </html>
