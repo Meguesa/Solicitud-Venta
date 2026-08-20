@@ -308,6 +308,13 @@
 
     paginas.forEach((section) => {
       const clone = section.cloneNode(true);
+
+      // cloneNode copia la estructura/atributos, pero no garantiza copiar el
+      // estado vivo de controles modificados por el usuario. En particular, los
+      // <select> regresaban visualmente a la opcion inicial "Selecciona" en el
+      // resumen aunque el formulario original tuviera una opcion valida elegida.
+      copiarEstadoFormulario(section, clone);
+
       clone.removeAttribute('id');
       clone.classList.remove('wizard-page-hidden', 'wizard-page-active');
       clone.classList.add('wizard-summary-section');
@@ -326,6 +333,43 @@
         canvas.replaceWith(firma);
       });
       summary.appendChild(clone);
+    });
+  }
+
+  function copiarEstadoFormulario(originalSection, clonedSection) {
+    const originales = Array.from(originalSection.querySelectorAll('input, select, textarea'));
+    const clonados = Array.from(clonedSection.querySelectorAll('input, select, textarea'));
+
+    originales.forEach((original, index) => {
+      const clone = clonados[index];
+      if (!clone) return;
+
+      if (original instanceof HTMLSelectElement && clone instanceof HTMLSelectElement) {
+        // Copiar selectedness real, no solo el atributo selected del HTML inicial.
+        Array.from(clone.options).forEach((option, optionIndex) => {
+          option.selected = Boolean(original.options[optionIndex]?.selected);
+        });
+        clone.value = original.value;
+        return;
+      }
+
+      if (original instanceof HTMLTextAreaElement && clone instanceof HTMLTextAreaElement) {
+        clone.value = original.value;
+        clone.textContent = original.value;
+        return;
+      }
+
+      if (original instanceof HTMLInputElement && clone instanceof HTMLInputElement) {
+        if (original.type === 'checkbox' || original.type === 'radio') {
+          clone.checked = original.checked;
+          if (original.checked) clone.setAttribute('checked', 'checked');
+          else clone.removeAttribute('checked');
+          return;
+        }
+
+        clone.value = original.value;
+        clone.setAttribute('value', original.value);
+      }
     });
   }
 
