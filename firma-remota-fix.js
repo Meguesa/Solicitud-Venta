@@ -2,6 +2,8 @@
   const INICIAR_ENDPOINT = "/api/solicitud-venta/iniciar-firma-remota.php";
   const PREPARAR_ENDPOINT = "/api/solicitud-venta/preparar-firma-remota.php";
   const GESTIONAR_ENDPOINT = "/api/solicitud-venta/gestionar-firma-remota.php";
+  const BORRADOR_ENDPOINT = "/api/solicitud-venta/estado-borrador.php";
+  const ESTADO_ENDPOINT = "/api/solicitud-venta/estado-solicitud.php";
   const STORAGE_PREFIX = "solicitudVenta:borradorActivo:v1:";
   let puenteInstalado = false;
   let recuperando = false;
@@ -37,14 +39,7 @@
         ...(actual?.firmas && typeof actual.firmas === "object" ? actual.firmas : {})
       };
 
-      // La firma del vendedor ya fue verificada contra SharePoint por el modulo
-      // de seguimiento. Si la UI muestra el mensaje controlado de firma guardada,
-      // no debemos volver a bloquear el envio por un booleano historico desfasado.
       if (vendedorConfirmadoVisualmente()) firmas.FIRMA_VENDEDOR = true;
-
-      // En modalidad REMOTA la firma del cliente solo puede considerarse valida
-      // despues de que la pagina publica reciba y guarde la firma. Cualquier true
-      // heredado de pruebas/presencial se ignora mientras se prepara el enlace.
       if (esRemota()) firmas.FIRMA_CLIENTE = false;
 
       return {
@@ -142,6 +137,11 @@
     const gestionExistente = document.getElementById("firmaRemotaGestion");
     if (gestionExistente) {
       gestionExistente.hidden = false;
+      const url = String(document.getElementById("firmaRemotaUrl")?.value || "").trim();
+      const estado = document.getElementById("firmaRemotaGestionEstado");
+      if (estado && !url) {
+        estado.textContent = "La liga anterior no esta disponible en este navegador. Genera una nueva para invalidar la anterior y compartirla con el cliente.";
+      }
       return;
     }
 
@@ -155,7 +155,7 @@
     panel.innerHTML = `
       <div class="remote-signature-management-copy">
         <strong>Enlace de firma del cliente</strong>
-        <small id="firmaRemotaRecuperacionEstado">Si el enlace no aparece, genera uno nuevo. El enlace anterior quedará invalidado.</small>
+        <small id="firmaRemotaRecuperacionEstado">Si el enlace no aparece, genera uno nuevo. El enlace anterior quedara invalidado.</small>
       </div>
       <div class="remote-signature-management-actions">
         <button id="btnRecuperarFirmaRemota" type="button">Generar nuevo enlace</button>
@@ -173,7 +173,7 @@
     const folio = obtenerFolio();
     if (!folio) return mostrarMensaje("No fue posible identificar el folio de la solicitud.", "error");
 
-    if (!window.confirm("Se invalidará el enlace anterior y se generará uno nuevo para el cliente. ¿Deseas continuar?")) return;
+    if (!window.confirm("Se invalidara el enlace anterior y se generara uno nuevo para el cliente. ¿Deseas continuar?")) return;
 
     recuperando = true;
     const button = document.getElementById("btnRecuperarFirmaRemota");
@@ -182,7 +182,7 @@
     try {
       mostrarMensaje("Generando un nuevo enlace de firma...");
       const token = await window.solicitudVentaAuth.getBackendAccessToken();
-      if (!token) throw new Error("No fue posible obtener autorización.");
+      if (!token) throw new Error("No fue posible obtener autorizacion.");
 
       const response = await fetch(GESTIONAR_ENDPOINT, {
         method: "POST",
@@ -197,13 +197,13 @@
       if (!response.ok || !data?.ok) throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
 
       const firmaUrl = String(data?.firmaUrl || "").trim();
-      if (!firmaUrl) throw new Error("El servidor no devolvió el nuevo enlace.");
+      if (!firmaUrl) throw new Error("El servidor no devolvio el nuevo enlace.");
 
       guardarEnlaceLocal(folio, firmaUrl);
       mostrarEnlace(firmaUrl);
 
       const estado = document.getElementById("firmaRemotaRecuperacionEstado");
-      if (estado) estado.textContent = "Nuevo enlace generado. El enlace anterior quedó invalidado.";
+      if (estado) estado.textContent = "Nuevo enlace generado. El enlace anterior quedo invalidado.";
       mostrarMensaje(`Nuevo enlace generado para ${folio}. Ya puedes copiarlo y compartirlo con el cliente.`, "ok");
     } catch (error) {
       console.error("Recuperar enlace de firma remota:", error);
@@ -221,6 +221,40 @@
     window.fetch = async function (input, init = {}) {
       const url = typeof input === "string" ? input : String(input?.url || "");
       const method = String(init?.method || "GET").toUpperCase();
+
+      // Persistencia usa estado-borrador.php para reconstruir el formulario.
+      // Cuando la solicitud ya esta PENDIENTE FIRMA / VOBO / APROBADA, cargar
+      // sigue siendo valido pero guardar ya no. Si el endpoint de borrador
+      // responde DRAFT_NOT_EDITABLE, consultamos estado-solicitud.php y devolvemos
+      // esa misma fotografia completa en modo solo lectura.
+      if (url.includes(BORRADOR_ENDPOINT) && method === "POST") {
+        let body = null;
+        try {
+          body = typeof init?.body === "string" ? JSON.parse(init.body) : null;
+        } catch (_) {}
+
+        if (body?.accion === "cargar") {
+          const response = await fetchAnterior(input, init);
+          if (response.ok) return response;
+
+          const errorData = await response.clone().json().catch(() => null);
+          if (response.status === 409 && String(errorData?.error || "").trim().toUpperCase() === "DRAFT_NOT_EDITABLE") {
+            const headers = new Headers(init?.headers || {});
+            return fetchAnterior(ESTADO_ENDPOINT, {
+              method: "POST",
+              cache: "no-store",
+              credentials: "same-origin",
+              headers,
+              body: JSON.stringify({
+                accion: "cargar",
+                folio: String(body?.folio || obtenerFolio()).trim().toUpperCase(),
+                itemId: String(body?.itemId || obtenerItemId()).trim()
+              })
+            });
+          }
+          return response;
+        }
+      }
 
       if (!url.includes(INICIAR_ENDPOINT) || method !== "POST") {
         return fetchAnterior(input, init);
@@ -258,10 +292,6 @@
         throw new Error(resultado?.message || resultado?.error || `No fue posible preparar la firma remota (HTTP ${response.status}).`);
       }
 
-      // Ejecutamos el endpoint original y capturamos una copia de su respuesta
-      // antes de que firma-remota.js la consuma. Asi la URL queda persistida en el
-      // mismo instante en que el servidor la genera y no se pierde al bloquear o
-      // repintar el formulario como PENDIENTE FIRMA.
       const finalResponse = await fetchAnterior(input, init);
       try {
         const copia = finalResponse.clone();
@@ -296,9 +326,6 @@
     instalarPuenteExpediente();
     instalarPreflight();
 
-    // Document capture ocurre antes del listener capture instalado directamente
-    // sobre el boton por firma-remota.js. Reinstalamos el puente justo antes del
-    // clic por si otro modulo reemplazo el objeto de extras durante la recuperacion.
     document.addEventListener("click", (event) => {
       const button = event.target instanceof Element ? event.target.closest("#btnValidate") : null;
       if (!button || !esRemota()) return;
