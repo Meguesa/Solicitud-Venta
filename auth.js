@@ -1,6 +1,11 @@
 const solicitudVentaConfig = window.SOLICITUD_VENTA_CONFIG;
 let solicitudVentaMsal = null;
 
+const SOLICITUD_AUTO_LOGIN_KEY = "solicitudVenta:autoLogin";
+const SOLICITUD_LOGIN_HINT_KEY = "solicitudVenta:loginHint";
+const SOLICITUD_NUEVA_KEY = "solicitudVenta:nuevaSolicitud";
+const SOLICITUD_BORRADOR_PREFIX = "solicitudVenta:borradorActivo:v1:";
+
 async function asegurarMsalDisponible() {
   if (window.msal?.PublicClientApplication) {
     return;
@@ -46,6 +51,75 @@ async function obtenerInstanciaMsal() {
   return solicitudVentaMsal;
 }
 
+function scopesSolicitudVenta() {
+  const scopes = ["openid", "profile", "email"];
+  if (solicitudVentaConfig?.msal?.backendScope) {
+    scopes.push(solicitudVentaConfig.msal.backendScope);
+  }
+  return scopes;
+}
+
+function leerSessionStorage(key) {
+  try {
+    return sessionStorage.getItem(key) || "";
+  } catch (_error) {
+    return "";
+  }
+}
+
+function borrarSessionStorage(key) {
+  try {
+    sessionStorage.removeItem(key);
+  } catch (_error) {
+    // Sin almacenamiento de sesion, el acceso manual sigue disponible.
+  }
+}
+
+async function intentarAutenticacionAutomatica(instancia) {
+  if (instancia.getActiveAccount()) return;
+  if (leerSessionStorage(SOLICITUD_AUTO_LOGIN_KEY) !== "1") return;
+
+  // Consumimos la bandera antes de cualquier redireccion para impedir bucles.
+  borrarSessionStorage(SOLICITUD_AUTO_LOGIN_KEY);
+
+  const loginHint = leerSessionStorage(SOLICITUD_LOGIN_HINT_KEY).trim();
+  const request = {
+    scopes: scopesSolicitudVenta()
+  };
+  if (loginHint) request.loginHint = loginHint;
+
+  try {
+    const response = await instancia.ssoSilent(request);
+    if (response?.account) {
+      instancia.setActiveAccount(response.account);
+      return;
+    }
+  } catch (error) {
+    console.info("SSO silencioso no disponible; se continuara mediante redireccion de Microsoft.", error);
+  }
+
+  await instancia.loginRedirect(request);
+}
+
+function prepararNuevaSolicitudSiCorresponde(instancia) {
+  if (leerSessionStorage(SOLICITUD_NUEVA_KEY) !== "1") return;
+
+  const account = instancia.getActiveAccount();
+  const correo = String(account?.username || "").trim().toLowerCase();
+  if (!correo) return;
+
+  // Nueva solicitud significa captura realmente nueva: no recuperar el ultimo
+  // borrador activo del vendedor desde persistencia.js.
+  try {
+    localStorage.removeItem(`${SOLICITUD_BORRADOR_PREFIX}${correo}`);
+  } catch (_error) {
+    // Si localStorage no esta disponible, no bloqueamos la captura.
+  }
+
+  borrarSessionStorage(SOLICITUD_NUEVA_KEY);
+  borrarSessionStorage(SOLICITUD_LOGIN_HINT_KEY);
+}
+
 async function inicializarAutenticacionSolicitudVenta() {
   const instancia = await obtenerInstanciaMsal();
   const redirectResponse = await instancia.handleRedirectPromise();
@@ -61,18 +135,21 @@ async function inicializarAutenticacionSolicitudVenta() {
     }
   }
 
+  if (!instancia.getActiveAccount()) {
+    await intentarAutenticacionAutomatica(instancia);
+  }
+
+  prepararNuevaSolicitudSiCorresponde(instancia);
   renderEstadoSesion();
 }
 
 async function iniciarSesionSolicitudVenta() {
   const instancia = await obtenerInstanciaMsal();
-  const scopes = ["openid", "profile", "email"];
+  const request = { scopes: scopesSolicitudVenta() };
+  const loginHint = leerSessionStorage(SOLICITUD_LOGIN_HINT_KEY).trim();
+  if (loginHint) request.loginHint = loginHint;
 
-  if (solicitudVentaConfig?.msal?.backendScope) {
-    scopes.push(solicitudVentaConfig.msal.backendScope);
-  }
-
-  await instancia.loginRedirect({ scopes });
+  await instancia.loginRedirect(request);
 }
 
 async function cerrarSesionSolicitudVenta() {
