@@ -22,6 +22,7 @@
     inicializado = true;
     integrarVendedorEnGeneral(form);
     crearControles(form, banner, actions);
+    enlazarGuardadoCompleto();
     observarCambios(form);
     mostrarPagina(0, false);
   }
@@ -87,6 +88,23 @@
     document.getElementById('btnReset')?.addEventListener('click', () => {
       setTimeout(() => mostrarPagina(0, false), 50);
     });
+  }
+
+  function enlazarGuardadoCompleto() {
+    const boton = document.getElementById('btnSaveDraft');
+    if (!boton || boton.dataset.wizardSaveDispatch === '1') return;
+    boton.dataset.wizardSaveDispatch = '1';
+
+    // app.js enlaza inicialmente el boton a la funcion original. Los modulos de
+    // Componentes y Persistencia reemplazan despues window.guardarBorrador para
+    // ejecutar una cadena completa de guardado. Este listener en fase de captura
+    // evita ejecutar la referencia antigua y llama siempre a la version vigente.
+    boton.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (typeof window.guardarBorrador !== 'function') return;
+      await window.guardarBorrador();
+    }, true);
   }
 
   function observarCambios(form) {
@@ -204,9 +222,6 @@
     const actual = paginas[paginaActual];
     if (!actual) return;
 
-    // Un borrador puede estar incompleto. Permitimos recorrer todas las páginas
-    // para revisar/capturar información en cualquier orden. La validación estricta
-    // se ejecuta únicamente antes de construir el resumen final.
     if (paginaActual < paginas.length - 1) {
       mostrarPagina(paginaActual + 1);
       return;
