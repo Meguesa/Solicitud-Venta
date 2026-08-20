@@ -18,7 +18,7 @@ $role = htmlspecialchars(portal_vobo_role(), ENT_QUOTES, 'UTF-8');
   <meta name="theme-color" content="#225b8a">
   <title>Vo.Bo. de Solicitudes | Jardines de Juan Pablo</title>
   <link rel="stylesheet" href="/assets/css/account-menu.css">
-  <link rel="stylesheet" href="./vobo.css?v=20260820-1">
+  <link rel="stylesheet" href="./vobo.css?v=20260820-2">
 </head>
 <body>
   <header class="vobo-header">
@@ -89,7 +89,7 @@ $role = htmlspecialchars(portal_vobo_role(), ENT_QUOTES, 'UTF-8');
 
       <section class="detail-block">
         <h3>Información capturada</h3>
-        <p class="muted">Se muestran los campos con información registrada en la solicitud.</p>
+        <p class="muted">Se muestran únicamente los campos capturados en la solicitud, con los mismos nombres utilizados por el vendedor.</p>
         <div id="detailFields" class="detail-grid"></div>
       </section>
 
@@ -100,6 +100,6 @@ $role = htmlspecialchars(portal_vobo_role(), ENT_QUOTES, 'UTF-8');
     </section>
   </main>
 
-  <script src="./vobo.js?v=20260820-1"></script>
+  <script src="./vobo.js?v=20260820-2"></script>
 </body>
 </html>
