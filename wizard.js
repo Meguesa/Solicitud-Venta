@@ -77,7 +77,7 @@
     nav.className = 'wizard-nav';
     nav.innerHTML = `
       <button id="wizardBack" type="button" class="wizard-button wizard-button-secondary">← Atrás</button>
-      <div class="wizard-nav-copy"><span id="wizardNavHint">Completa esta sección para continuar.</span></div>
+      <div class="wizard-nav-copy"><span id="wizardNavHint">Puedes avanzar y completar esta sección después.</span></div>
       <button id="wizardNext" type="button" class="wizard-button wizard-button-primary">Siguiente →</button>`;
     form.insertBefore(nav, actions);
 
@@ -186,8 +186,8 @@
     if (back) back.disabled = paginaActual === 0;
     if (next) next.textContent = paginaActual === paginas.length - 1 ? 'Revisar solicitud →' : 'Siguiente →';
     if (hint) hint.textContent = paginaActual === paginas.length - 1
-      ? 'Continúa para revisar el resumen completo antes de enviar.'
-      : 'Completa esta sección para continuar.';
+      ? 'Al revisar se validarán todos los campos obligatorios de la solicitud.'
+      : 'Puedes avanzar y completar esta sección después. Guarda el borrador cuando lo necesites.';
   }
 
   function atras() {
@@ -204,8 +204,9 @@
     const actual = paginas[paginaActual];
     if (!actual) return;
 
-    if (!validarSeccion(actual)) return;
-
+    // Un borrador puede estar incompleto. Permitimos recorrer todas las páginas
+    // para revisar/capturar información en cualquier orden. La validación estricta
+    // se ejecuta únicamente antes de construir el resumen final.
     if (paginaActual < paginas.length - 1) {
       mostrarPagina(paginaActual + 1);
       return;
@@ -213,20 +214,6 @@
 
     if (!validarFormularioCompleto(paginas)) return;
     mostrarResumen(paginas);
-  }
-
-  function validarSeccion(section) {
-    const controles = controlesValidables(section);
-    for (const control of controles) {
-      if (!control.checkValidity()) {
-        control.reportValidity();
-        control.focus({ preventScroll: true });
-        control.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        mostrarMensaje('Completa los campos obligatorios de esta sección antes de continuar.', 'error');
-        return false;
-      }
-    }
-    return true;
   }
 
   function validarFormularioCompleto(paginas) {
