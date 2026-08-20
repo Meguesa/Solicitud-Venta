@@ -71,7 +71,7 @@
         </select>
       </label>
       <div id="firmaRemotaAyuda" class="remote-signature-help" hidden>
-        El cliente firmará desde un enlace seguro. La firma del vendedor sí debe quedar registrada antes de enviar la solicitud.
+        El enlace seguro se generará después de revisar el resumen final y pulsar <strong>Enviar a firma</strong>. La firma del vendedor debe quedar registrada antes de generar el enlace.
       </div>
       <div id="firmaRemotaResultado" class="remote-signature-result" hidden>
         <strong>Enlace de firma del cliente</strong>
@@ -103,7 +103,7 @@
       if (limpiar) limpiar.disabled = remota;
       const status = cardCliente.querySelector('[data-signature-status="FIRMA_CLIENTE"]');
       if (status && remota) {
-        status.textContent = "La firma del cliente se solicitará mediante un enlace remoto.";
+        status.textContent = "La firma del cliente se solicitará mediante el enlace que se generará al enviar la solicitud.";
       } else if (status && !status.textContent.includes("ya guardada")) {
         status.textContent = "Firma dentro del recuadro usando dedo, mouse o lápiz digital.";
       }
@@ -218,7 +218,7 @@
 
   async function subirArchivo(folio, tipoDocumento, file) {
     const token = await window.solicitudVentaAuth.getBackendAccessToken();
-    if (!token) throw new Error("No fue posible obtener autorización para cargar archivos.");
+    if (!token) throw new Error("No fue posible obtener autorización para cargar el expediente.");
 
     const formData = new FormData();
     formData.append("folio", folio);
@@ -232,18 +232,16 @@
     });
     const data = await response.json().catch(() => null);
     if (!response.ok || !data?.ok) throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    return data;
   }
 
   async function iniciarFirmaRemota(folio, detalleSolicitud) {
     const token = await window.solicitudVentaAuth.getBackendAccessToken();
-    if (!token) throw new Error("No fue posible obtener autorización para iniciar la firma remota.");
+    if (!token) throw new Error("No fue posible obtener autorización para generar el enlace de firma.");
 
     const response = await fetch("/api/solicitud-venta/iniciar-firma-remota.php", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ folio, detalleSolicitud })
     });
     const data = await response.json().catch(() => null);
@@ -251,313 +249,148 @@
     return data;
   }
 
-  function capturarDetalleSolicitud() {
-    const form = document.getElementById("solicitudForm");
-    if (!form) return [];
-
-    const omitidas = new Set(["componentesSection", "documentosSection", "firmasSection"]);
-    const secciones = [];
-
-    form.querySelectorAll("section.form-section").forEach((section) => {
-      if (omitidas.has(section.id) || !esVisible(section)) return;
-      const titulo = section.querySelector(".section-title h3")?.textContent?.trim() || "Información";
-      const campos = [];
-
-      section.querySelectorAll("input, select, textarea").forEach((control) => {
-        if (!control.id || !esVisible(control)) return;
-        if (control instanceof HTMLInputElement && ["file", "button", "submit", "reset", "hidden"].includes(control.type)) return;
-        if (control.id === "modalidadFirma") return;
-
-        const etiqueta = obtenerEtiqueta(control);
-        if (!etiqueta) return;
-        const dato = obtenerValorControl(control);
-        if (!dato) return;
-        campos.push({ id: control.id, etiqueta, valor: dato.valor, tipo: dato.tipo });
-      });
-
-      if (campos.length) secciones.push({ titulo, campos });
-    });
-
-    const documentos = capturarDocumentacion();
-    if (documentos.campos.length) secciones.push(documentos);
-
-    return secciones;
-  }
-
-  function capturarDocumentacion() {
-    const campos = [];
-    document.querySelectorAll("#documentosSection .upload-card").forEach((card) => {
-      const titulo = card.querySelector("strong")?.textContent?.trim() || card.dataset.documentType || "Documento";
-      const archivosSeleccionados = Array.from(card.querySelectorAll('input[type="file"]')).some((input) => Boolean(input.files?.length));
-      const recibido = card.dataset.archivoCargado === "1" || archivosSeleccionados;
-      if (recibido) campos.push({ etiqueta: titulo, valor: "RECIBIDO", tipo: "texto" });
-    });
-    const otros = document.getElementById("documentoOtros")?.value?.trim();
-    if (otros) campos.push({ etiqueta: "Descripción de otros documentos", valor: otros, tipo: "texto" });
-    return { titulo: "Documentación", campos };
-  }
-
-  function esVisible(elemento) {
-    if (!elemento || elemento.closest("[hidden]")) return false;
-    const estilo = window.getComputedStyle(elemento);
-    return estilo.display !== "none" && estilo.visibility !== "hidden";
-  }
-
-  function obtenerEtiqueta(control) {
-    const label = control.closest("label");
-    if (label) {
-      const copia = label.cloneNode(true);
-      copia.querySelectorAll("input, select, textarea, button, small").forEach((node) => node.remove());
-      const texto = copia.textContent.replace(/\s+/g, " ").trim();
-      if (texto) return texto;
-    }
-    return control.getAttribute("aria-label")?.trim() || control.id;
-  }
-
-  function obtenerValorControl(control) {
-    if (control instanceof HTMLInputElement && (control.type === "checkbox" || control.type === "radio")) {
-      return { valor: control.checked ? "SI" : "NO", tipo: "booleano" };
-    }
-
-    let valor = "";
-    if (control instanceof HTMLSelectElement) {
-      valor = control.selectedOptions?.[0]?.textContent?.trim() || control.value.trim();
-      if (!control.value) valor = "";
-    } else {
-      valor = String(control.value || "").trim();
-    }
-    if (!valor) return null;
-
-    if (control instanceof HTMLInputElement && control.type === "date") return { valor, tipo: "fecha" };
-    if (CAMPOS_MONEDA.has(control.id)) return { valor, tipo: "moneda" };
-    if (control instanceof HTMLInputElement && control.type === "number") return { valor, tipo: "numero" };
-    return { valor, tipo: "texto" };
-  }
-
   function finalizarEnvioRemoto(resultado) {
-    const folio = resultado?.folio || obtenerFolioActual();
-    const url = resultado?.firmaUrl || "";
-    const resultBox = document.getElementById("firmaRemotaResultado");
-    const input = document.getElementById("firmaRemotaUrl");
-    if (input) input.value = url;
-    if (resultBox) resultBox.hidden = false;
-
-    guardarReferenciaLocal(folio);
-    aplicarEstadoVisual("PENDIENTE FIRMA", { folio }, false);
-    iniciarSeguimiento(folio);
-
-    mostrarMensaje(
-      `Solicitud ${folio} enviada a firma remota. Comparte el enlace seguro con el cliente. Estatus: PENDIENTE FIRMA.`,
-      "ok"
-    );
-    resultBox?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }
-
-  async function iniciarSeguimientoDesdeStorage() {
-    const referencia = leerReferenciaLocal();
-    if (!referencia?.folio) return;
-
-    try {
-      const data = await consultarEstadoSolicitud(referencia.folio);
-      aplicarRespuestaSeguimiento(data, true);
-      if (String(data.estatus || "").toUpperCase() === "PENDIENTE FIRMA") iniciarSeguimiento(referencia.folio);
-    } catch (error) {
-      console.warn("No fue posible consultar el estado de firma remota:", error);
-    }
-  }
-
-  function iniciarSeguimiento(folio) {
-    if (!folio) return;
+    const folio = String(resultado?.folio || obtenerFolioActual() || "");
+    const firmaUrl = String(resultado?.firmaUrl || "");
     seguimientoFolio = folio;
-    if (seguimientoTimer) clearInterval(seguimientoTimer);
+    ultimoEstatus = "PENDIENTE FIRMA";
 
-    seguimientoTimer = setInterval(async () => {
-      try {
-        const data = await consultarEstadoSolicitud(seguimientoFolio);
-        aplicarRespuestaSeguimiento(data, false);
-      } catch (error) {
-        console.warn("Seguimiento de firma remota:", error);
-      }
-    }, 8000);
-  }
+    const resultBox = document.getElementById("firmaRemotaResultado");
+    const urlInput = document.getElementById("firmaRemotaUrl");
+    if (urlInput) urlInput.value = firmaUrl;
+    if (resultBox) resultBox.hidden = !firmaUrl;
 
-  function detenerSeguimiento() {
-    if (seguimientoTimer) clearInterval(seguimientoTimer);
-    seguimientoTimer = null;
-    seguimientoFolio = "";
-    ultimoEstatus = "";
-  }
-
-  async function consultarEstadoSolicitud(folio) {
-    const token = await window.solicitudVentaAuth.getBackendAccessToken();
-    if (!token) throw new Error("No fue posible obtener autorización para consultar el estado.");
-
-    const response = await fetch(ESTADO_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ accion: "cargar", folio })
-    });
-    const data = await response.json().catch(() => null);
-    if (!response.ok || !data?.ok) throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
-    return data;
-  }
-
-  function aplicarRespuestaSeguimiento(data, desdeCarga) {
-    const estatus = String(data?.estatus || "BORRADOR").trim().toUpperCase();
-    const expediente = data?.estado?.expediente;
-    if (expediente && window.solicitudVentaExtras?.restaurarEstadoExpediente) {
-      window.solicitudVentaExtras.restaurarEstadoExpediente(expediente);
-    }
-
-    aplicarEstadoVisual(estatus, data, desdeCarga);
-    if (estatus !== "PENDIENTE FIRMA") detenerSeguimiento();
-  }
-
-  function aplicarEstadoVisual(estatus, data = null, desdeCarga = false) {
-    const estado = String(estatus || "BORRADOR").trim().toUpperCase();
-    if (estado === "BORRADOR") return;
-
-    bloquearFormulario(estado);
-
-    const pill = document.querySelector(".status-pill");
-    if (pill) pill.textContent = estado;
-
-    const validar = document.getElementById("btnValidate");
-    if (validar) {
-      validar.disabled = true;
-      validar.textContent = estado === "PENDIENTE FIRMA" ? "Pendiente de firma" : "En Vo.Bo.";
-    }
-
-    const cambio = ultimoEstatus !== estado;
-    ultimoEstatus = estado;
-    const folio = data?.folio || obtenerFolioActual() || seguimientoFolio;
-
-    if (estado === "PENDIENTE FIRMA") {
-      if (cambio || desdeCarga) {
-        mostrarMensaje(`Solicitud ${folio} pendiente de firma del cliente. La información queda en modo solo lectura.`, "ok");
-      }
-      return;
-    }
-
-    if (estado === "PENDIENTE VOBO") {
-      const cardCliente = document.querySelector('[data-signature-type="FIRMA_CLIENTE"]');
-      cardCliente?.classList.remove("remote-signature-disabled");
-      const statusCliente = cardCliente?.querySelector('[data-signature-status="FIRMA_CLIENTE"]');
-      if (statusCliente) statusCliente.textContent = "Firma remota recibida y guardada en el expediente.";
-      if (cambio || desdeCarga) {
-        mostrarMensaje(`Firma remota recibida para ${folio}. La solicitud fue enviada a Vo.Bo. y permanece disponible en modo solo lectura.`, "ok");
-      }
-      return;
-    }
-
-    if (cambio || desdeCarga) {
-      mostrarMensaje(`Solicitud ${folio} en estatus ${estado}. La información se mantiene en modo solo lectura.`, "ok");
-    }
-  }
-
-  function bloquearFormulario(estatus) {
-    const form = document.getElementById("solicitudForm");
-    if (!form) return;
-
-    form.querySelectorAll("input, select, textarea, button").forEach((control) => {
-      if (control.id === "btnReset" || control.id === "btnCopiarFirmaRemota") return;
-      control.disabled = true;
-    });
-
-    const reset = document.getElementById("btnReset");
-    if (reset) {
-      reset.disabled = false;
-      reset.textContent = "Nueva solicitud";
-    }
-
-    const guardar = document.getElementById("btnSaveDraft");
-    if (guardar) guardar.disabled = true;
-
-    const validar = document.getElementById("btnValidate");
-    if (validar) validar.disabled = true;
-
-    const copiar = document.getElementById("btnCopiarFirmaRemota");
-    if (copiar) copiar.disabled = false;
-
-    document.body.dataset.solicitudEstatus = estatus;
-  }
-
-  function guardarReferenciaLocal(folio) {
-    if (!/^SV-\d{4}-\d+$/.test(String(folio || ""))) return;
-    const key = claveStorage();
-    if (!key) return;
-    const itemId = String(Number(String(folio).split("-").pop() || 0) || "");
-    if (!itemId) return;
-
-    try {
-      localStorage.setItem(key, JSON.stringify({ folio, itemId, actualizado: new Date().toISOString() }));
-    } catch (error) {
-      console.warn("No fue posible conservar la solicitud en seguimiento:", error);
-    }
-  }
-
-  function leerReferenciaLocal() {
-    const key = claveStorage();
-    if (!key) return null;
-    try {
-      const raw = localStorage.getItem(key);
-      if (!raw) return null;
-      const data = JSON.parse(raw);
-      if (!/^SV-\d{4}-\d+$/.test(String(data?.folio || ""))) return null;
-      return data;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  function claveStorage() {
-    const usuario = window.solicitudVentaAuth?.getUser?.();
-    const correo = String(usuario?.username || document.getElementById("userEmail")?.textContent || "").trim().toLowerCase();
-    return correo ? `${STORAGE_PREFIX}${correo}` : "";
+    if (folio) guardarReferenciaLocal(folio);
+    bloquearFormularioPendienteFirma();
+    mostrarMensaje(`Solicitud ${folio} enviada a firma. Comparte el enlace seguro con el cliente.`, "ok");
+    iniciarSeguimiento(folio);
   }
 
   async function copiarEnlace() {
     const input = document.getElementById("firmaRemotaUrl");
-    const value = input?.value?.trim() || "";
+    const value = input?.value?.trim();
     if (!value) return;
     try {
       await navigator.clipboard.writeText(value);
-      mostrarMensaje("Enlace de firma copiado. Compártelo únicamente con el cliente.", "ok");
+      mostrarMensaje("Enlace de firma copiado al portapapeles.", "ok");
     } catch (_) {
+      input.focus();
       input.select();
       document.execCommand("copy");
-      mostrarMensaje("Enlace de firma copiado.", "ok");
+      mostrarMensaje("Enlace de firma copiado al portapapeles.", "ok");
     }
   }
 
-  function restablecer() {
-    const modalidad = document.getElementById("modalidadFirma");
-    if (modalidad) {
-      modalidad.disabled = false;
-      modalidad.value = "PRESENCIAL";
-    }
-    const resultBox = document.getElementById("firmaRemotaResultado");
-    if (resultBox) resultBox.hidden = true;
-    const url = document.getElementById("firmaRemotaUrl");
-    if (url) url.value = "";
+  function capturarDetalleSolicitud() {
+    const sections = [];
+    document.querySelectorAll("#solicitudForm > section.form-section").forEach((section) => {
+      if (section.hidden) return;
+      const titulo = section.querySelector(".section-title h3")?.textContent?.trim() || "Sección";
+      const campos = [];
+      section.querySelectorAll("input, select, textarea").forEach((control) => {
+        if (!(control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement)) return;
+        if (!control.id || control.closest("[hidden]") || control.disabled) return;
+        if (control instanceof HTMLInputElement && ["file", "button", "submit", "reset", "hidden"].includes(control.type)) return;
 
-    const form = document.getElementById("solicitudForm");
-    form?.querySelectorAll("input, select, textarea, button").forEach((control) => {
-      control.disabled = false;
+        const label = control.closest("label")?.childNodes?.[0]?.textContent?.trim() || control.id;
+        let value = "";
+        if (control instanceof HTMLInputElement && (control.type === "checkbox" || control.type === "radio")) {
+          value = control.checked ? "Sí" : "No";
+        } else if (control instanceof HTMLSelectElement) {
+          value = control.selectedOptions[0]?.textContent?.trim() || control.value;
+        } else {
+          value = control.value;
+        }
+        if (String(value).trim() === "") return;
+        campos.push({ etiqueta: label, valor: String(value).trim(), tipo: "texto" });
+      });
+      if (campos.length) sections.push({ titulo, campos });
     });
-
-    const reset = document.getElementById("btnReset");
-    if (reset) reset.textContent = "Limpiar";
-    delete document.body.dataset.solicitudEstatus;
-    actualizarModalidad();
+    return sections;
   }
 
   function obtenerFolioActual() {
     const folio = document.querySelector(".folio-box strong")?.textContent?.trim() || "";
     return /^SV-\d{4}-\d+$/.test(folio) ? folio : "";
+  }
+
+  function guardarReferenciaLocal(folio) {
+    try {
+      const usuario = window.solicitudVentaAuth?.getUser?.();
+      const correo = String(usuario?.username || "").trim().toLowerCase();
+      if (!correo) return;
+      const key = `${STORAGE_PREFIX}${correo}`;
+      const raw = localStorage.getItem(key);
+      const data = raw ? JSON.parse(raw) : {};
+      localStorage.setItem(key, JSON.stringify({ ...data, folio, estatus: "PENDIENTE FIRMA" }));
+    } catch (_) {}
+  }
+
+  function iniciarSeguimientoDesdeStorage() {
+    try {
+      const usuario = window.solicitudVentaAuth?.getUser?.();
+      const correo = String(usuario?.username || "").trim().toLowerCase();
+      if (!correo) return;
+      const raw = localStorage.getItem(`${STORAGE_PREFIX}${correo}`);
+      const data = raw ? JSON.parse(raw) : null;
+      const folio = String(data?.folio || "").trim();
+      if (/^SV-\d{4}-\d+$/.test(folio) && String(data?.estatus || "").toUpperCase() === "PENDIENTE FIRMA") {
+        iniciarSeguimiento(folio);
+      }
+    } catch (_) {}
+  }
+
+  function iniciarSeguimiento(folio) {
+    detenerSeguimiento();
+    if (!folio) return;
+    seguimientoFolio = folio;
+    seguimientoTimer = window.setInterval(() => consultarEstado(folio), 15000);
+    consultarEstado(folio);
+  }
+
+  function detenerSeguimiento() {
+    if (seguimientoTimer) window.clearInterval(seguimientoTimer);
+    seguimientoTimer = null;
+  }
+
+  async function consultarEstado(folio) {
+    try {
+      const token = await window.solicitudVentaAuth.getBackendAccessToken();
+      if (!token) return;
+      const response = await fetch(ESTADO_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ accion: "cargar", folio })
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.ok) return;
+      const estatus = String(data.estatus || "").trim().toUpperCase();
+      if (estatus) ultimoEstatus = estatus;
+      if (estatus === "FIRMADA" || estatus === "PENDIENTE VOBO" || estatus === "APROBADA") {
+        detenerSeguimiento();
+        mostrarMensaje(`La firma remota de ${folio} fue recibida. Estatus actual: ${estatus}.`, "ok");
+      }
+    } catch (_) {}
+  }
+
+  function bloquearFormularioPendienteFirma() {
+    const form = document.getElementById("solicitudForm");
+    if (!form) return;
+    form.querySelectorAll("input, select, textarea, button").forEach((control) => {
+      if (["btnLogout", "btnCopiarFirmaRemota"].includes(control.id)) return;
+      if (control.closest("#firmaRemotaResultado")) return;
+      control.disabled = true;
+    });
+  }
+
+  function restablecer() {
+    detenerSeguimiento();
+    seguimientoFolio = "";
+    ultimoEstatus = "";
+    const resultBox = document.getElementById("firmaRemotaResultado");
+    const urlInput = document.getElementById("firmaRemotaUrl");
+    if (resultBox) resultBox.hidden = true;
+    if (urlInput) urlInput.value = "";
   }
 
   function mostrarMensaje(texto, tipo = "") {
