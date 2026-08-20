@@ -111,27 +111,57 @@
       bloquear("Pendiente de firma", estatus);
       const reset = document.getElementById("btnReset");
       if (reset) reset.textContent = "Nueva solicitud";
+      mostrarMensaje(`Solicitud ${folio} pendiente de firma del cliente.`, "ok");
       return;
     }
 
-    if (estatus === "PENDIENTE VOBO" || data?.firmado === true) {
-      bloquear("En Vo.Bo.", "PENDIENTE VOBO");
-
-      const cardCliente = document.querySelector('[data-signature-type="FIRMA_CLIENTE"]');
-      cardCliente?.classList.remove("remote-signature-disabled");
-      const statusCliente = cardCliente?.querySelector('[data-signature-status="FIRMA_CLIENTE"]');
-      if (statusCliente) statusCliente.textContent = "Firma remota recibida y guardada en el expediente.";
+    if (estatus === "PENDIENTE VOBO") {
+      marcarFirmaClienteRecibida();
+      bloquear("En Vo.Bo.", estatus);
 
       const reset = document.getElementById("btnReset");
       if (reset) reset.textContent = "Nueva solicitud";
 
-      if (cambio) {
-        mostrarMensaje(`Firma remota recibida para ${folio}. La solicitud fue enviada a Vo.Bo. y permanece disponible en modo solo lectura.`, "ok");
-      }
+      mostrarMensaje(
+        `Firma remota recibida para ${folio}. La solicitud fue enviada a Vo.Bo. y permanece disponible en modo solo lectura.`,
+        "ok"
+      );
+      return;
+    }
+
+    if (estatus === "APROBADA") {
+      marcarFirmaClienteRecibida();
+      bloquear("Aprobada", estatus);
+
+      const reset = document.getElementById("btnReset");
+      if (reset) reset.textContent = "Nueva solicitud";
+
+      mostrarMensaje(
+        `Solicitud ${folio} aprobada en Vo.Bo. Permanece disponible en modo solo lectura.`,
+        "ok"
+      );
+      return;
+    }
+
+    if (estatus === "CORRECCION") {
+      bloquear("En corrección", estatus);
+      const reset = document.getElementById("btnReset");
+      if (reset) reset.textContent = "Nueva solicitud";
+      if (cambio) mostrarMensaje(`Solicitud ${folio} enviada a corrección.`, "ok");
       return;
     }
 
     bloquear(estatus, estatus);
+    const reset = document.getElementById("btnReset");
+    if (reset) reset.textContent = "Nueva solicitud";
+    if (cambio) mostrarMensaje(`Solicitud ${folio}. Estatus: ${estatus}.`, "ok");
+  }
+
+  function marcarFirmaClienteRecibida() {
+    const cardCliente = document.querySelector('[data-signature-type="FIRMA_CLIENTE"]');
+    cardCliente?.classList.remove("remote-signature-disabled");
+    const statusCliente = cardCliente?.querySelector('[data-signature-status="FIRMA_CLIENTE"]');
+    if (statusCliente) statusCliente.textContent = "Firma remota recibida y guardada en el expediente.";
   }
 
   function restaurarBorradorSiFueBloqueado() {
