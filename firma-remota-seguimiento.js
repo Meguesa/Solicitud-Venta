@@ -5,6 +5,11 @@
   let timer = null;
   let consultando = false;
   let ultimoEstatus = "";
+  let puenteExpedienteInstalado = false;
+  const firmasPersistidas = {
+    FIRMA_CLIENTE: false,
+    FIRMA_VENDEDOR: false
+  };
 
   function iniciar() {
     if (!window.solicitudVentaAuth) {
@@ -12,6 +17,7 @@
       return;
     }
 
+    asegurarPuenteExpediente();
     sembrarFolioDesdeQuery();
     capturarUrlActual();
     setTimeout(consultar, 900);
@@ -26,6 +32,33 @@
     document.addEventListener("DOMContentLoaded", iniciar);
   } else {
     iniciar();
+  }
+
+  function asegurarPuenteExpediente() {
+    if (puenteExpedienteInstalado) return;
+    const extras = window.solicitudVentaExtras;
+    if (!extras || typeof extras.capturarEstadoExpediente !== "function") {
+      setTimeout(asegurarPuenteExpediente, 100);
+      return;
+    }
+
+    const capturarOriginal = extras.capturarEstadoExpediente.bind(extras);
+    extras.capturarEstadoExpediente = () => {
+      const actual = capturarOriginal() || {};
+      const firmas = {
+        ...(actual?.firmas && typeof actual.firmas === "object" ? actual.firmas : {})
+      };
+
+      if (firmasPersistidas.FIRMA_CLIENTE) firmas.FIRMA_CLIENTE = true;
+      if (firmasPersistidas.FIRMA_VENDEDOR) firmas.FIRMA_VENDEDOR = true;
+
+      return {
+        ...actual,
+        firmas
+      };
+    };
+
+    puenteExpedienteInstalado = true;
   }
 
   async function consultar() {
@@ -93,6 +126,8 @@
   }
 
   function aplicarEstado(data, folio) {
+    sincronizarFirmasPersistidas(data);
+
     let estatus = String(data?.estatus || "").trim().toUpperCase();
     if (!estatus && data?.firmado) estatus = "PENDIENTE VOBO";
     if (!estatus) return;
@@ -157,7 +192,40 @@
     if (cambio) mostrarMensaje(`Solicitud ${folio}. Estatus: ${estatus}.`, "ok");
   }
 
+  function sincronizarFirmasPersistidas(data) {
+    asegurarPuenteExpediente();
+
+    const expedienteFirmas = data?.estado?.expediente?.firmas && typeof data.estado.expediente.firmas === "object"
+      ? data.estado.expediente.firmas
+      : {};
+
+    const firmaCliente = Boolean(expedienteFirmas.FIRMA_CLIENTE)
+      || String(data?.firmaCliente || "").trim().toUpperCase() === "FIRMADO";
+    const firmaVendedor = Boolean(expedienteFirmas.FIRMA_VENDEDOR)
+      || String(data?.firmaVendedor || "").trim().toUpperCase() === "FIRMADO";
+
+    // Solo promovemos estados positivos. Nunca reemplazamos una firma local
+    // recién dibujada por un false remoto durante el polling.
+    if (firmaCliente) firmasPersistidas.FIRMA_CLIENTE = true;
+    if (firmaVendedor) firmasPersistidas.FIRMA_VENDEDOR = true;
+
+    if (firmasPersistidas.FIRMA_CLIENTE) {
+      const statusCliente = document.querySelector('[data-signature-status="FIRMA_CLIENTE"]');
+      if (statusCliente && !statusCliente.textContent.includes("firma del cliente se solicitará")) {
+        statusCliente.textContent = "Firma ya guardada en el expediente. No es necesario volver a firmar.";
+      }
+    }
+
+    if (firmasPersistidas.FIRMA_VENDEDOR) {
+      const statusVendedor = document.querySelector('[data-signature-status="FIRMA_VENDEDOR"]');
+      if (statusVendedor) {
+        statusVendedor.textContent = "Firma ya guardada en el expediente. No es necesario volver a firmar.";
+      }
+    }
+  }
+
   function marcarFirmaClienteRecibida() {
+    firmasPersistidas.FIRMA_CLIENTE = true;
     const cardCliente = document.querySelector('[data-signature-type="FIRMA_CLIENTE"]');
     cardCliente?.classList.remove("remote-signature-disabled");
     const statusCliente = cardCliente?.querySelector('[data-signature-status="FIRMA_CLIENTE"]');
@@ -208,12 +276,16 @@
   }
 
   function sembrarFolioDesdeQuery() {
-    const folio = String(new URLSearchParams(location.search).get("folio") || "").trim().toUpperCase();
+    const params = new URLSearchParams(location.search);
+    const folio = String(params.get("folio") || "").trim().toUpperCase();
     if (!/^SV-\d{4}-\d+$/.test(folio)) return;
 
     const key = claveStorage();
     if (!key) return;
-    const itemId = String(Number(folio.split("-").pop() || 0) || "");
+    const itemIdQuery = String(params.get("itemId") || "").trim();
+    const itemId = /^\d+$/.test(itemIdQuery) && Number(itemIdQuery) > 0
+      ? String(Number(itemIdQuery))
+      : String(Number(folio.split("-").pop() || 0) || "");
     if (!itemId) return;
 
     try {
@@ -241,7 +313,11 @@
       const actual = raw ? JSON.parse(raw) : {};
       const folio = obtenerFolioActual() || actual?.folio || "";
       if (!/^SV-\d{4}-\d+$/.test(folio)) return;
-      const itemId = actual?.itemId || String(Number(folio.split("-").pop() || 0) || "");
+      const params = new URLSearchParams(location.search);
+      const itemIdQuery = String(params.get("itemId") || "").trim();
+      const itemId = actual?.itemId
+        || (/^\d+$/.test(itemIdQuery) && Number(itemIdQuery) > 0 ? String(Number(itemIdQuery)) : "")
+        || String(Number(folio.split("-").pop() || 0) || "");
       localStorage.setItem(key, JSON.stringify({
         ...actual,
         folio,
