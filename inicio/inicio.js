@@ -1,5 +1,9 @@
 (() => {
   const ENDPOINT = '/api/solicitud-venta/mis-solicitudes.php';
+  const AUTO_LOGIN_KEY = 'solicitudVenta:autoLogin';
+  const LOGIN_HINT_KEY = 'solicitudVenta:loginHint';
+  const NUEVA_KEY = 'solicitudVenta:nuevaSolicitud';
+
   let data = { pendientes: [], aprobadas: [] };
   let vista = 'pendientes';
 
@@ -10,7 +14,26 @@
       button.addEventListener('click', () => cambiarVista(button.dataset.view || 'pendientes'));
     });
     document.getElementById('btnRecargar')?.addEventListener('click', cargar);
+
+    const nueva = document.getElementById('newRequestLink');
+    nueva?.addEventListener('click', () => prepararAccesoSolicitud(true));
+
     cargar();
+  }
+
+  function prepararAccesoSolicitud(esNueva) {
+    try {
+      sessionStorage.setItem(AUTO_LOGIN_KEY, '1');
+
+      const loginHint = document.getElementById('newRequestLink')?.dataset.loginHint?.trim() || '';
+      if (loginHint) sessionStorage.setItem(LOGIN_HINT_KEY, loginHint);
+      else sessionStorage.removeItem(LOGIN_HINT_KEY);
+
+      if (esNueva) sessionStorage.setItem(NUEVA_KEY, '1');
+      else sessionStorage.removeItem(NUEVA_KEY);
+    } catch (_error) {
+      // Si sessionStorage no esta disponible, Solicitud de Venta conserva su login manual.
+    }
   }
 
   async function cargar() {
@@ -73,6 +96,7 @@
     const link = document.createElement('a');
     link.className = 'request-card';
     link.href = `/solicitud-venta/?folio=${encodeURIComponent(item.folio || '')}`;
+    link.addEventListener('click', () => prepararAccesoSolicitud(false));
 
     link.append(
       campo('Folio', item.folio || '—'),
