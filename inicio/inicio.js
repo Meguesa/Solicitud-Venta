@@ -72,7 +72,11 @@
   function crearTarjeta(item) {
     const link = document.createElement('a');
     link.className = 'request-card';
-    link.href = `/solicitud-venta/?folio=${encodeURIComponent(item.folio || '')}`;
+    const folio = String(item.folio || '');
+    const itemId = String(item.itemId || '').trim();
+    const params = new URLSearchParams({ folio });
+    if (/^\d+$/.test(itemId)) params.set('itemId', itemId);
+    link.href = `/solicitud-venta/?${params.toString()}`;
 
     link.append(
       campo('Folio', item.folio || '—'),
