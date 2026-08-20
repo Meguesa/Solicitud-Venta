@@ -8,6 +8,7 @@ portal_require_authentication();
 $user = portal_user();
 $name = htmlspecialchars((string) ($user['name'] ?? 'Usuario'), ENT_QUOTES, 'UTF-8');
 $email = htmlspecialchars((string) ($user['email'] ?? ''), ENT_QUOTES, 'UTF-8');
+$voboRole = portal_vobo_role();
 ?>
 <!doctype html>
 <html lang="es-MX">
@@ -17,7 +18,7 @@ $email = htmlspecialchars((string) ($user['email'] ?? ''), ENT_QUOTES, 'UTF-8');
   <meta name="theme-color" content="#225b8a">
   <title>Mis Solicitudes | Jardines de Juan Pablo</title>
   <link rel="stylesheet" href="/assets/css/account-menu.css">
-  <link rel="stylesheet" href="./inicio.css?v=20260820-1">
+  <link rel="stylesheet" href="./inicio.css?v=20260820-3">
 </head>
 <body>
   <header class="seller-header">
@@ -44,15 +45,15 @@ $email = htmlspecialchars((string) ($user['email'] ?? ''), ENT_QUOTES, 'UTF-8');
   <main class="seller-shell seller-main">
     <section class="intro-card">
       <div>
-        <span class="seller-pill">VENDEDOR</span>
+        <span class="seller-pill">SOLICITUD DE VENTA</span>
         <h2>Mis solicitudes</h2>
-        <p>Crea una solicitud nueva o consulta el seguimiento de las solicitudes que ya enviaste.</p>
+        <p>Crea una solicitud nueva, consulta su seguimiento o revisa Vo.Bo. cuando tu perfil tenga autorización.</p>
       </div>
       <button id="btnRecargar" type="button" class="secondary-button">Actualizar</button>
     </section>
 
     <section class="menu-grid" aria-label="Opciones de Solicitud de Venta">
-      <a id="newRequestLink" class="menu-card menu-card-new" href="/solicitud-venta/" data-login-hint="<?= $email ?>">
+      <a id="newRequestLink" class="menu-card menu-card-new" href="/solicitud-venta/?nuevo=1">
         <span class="menu-icon">＋</span>
         <div><strong>Nueva solicitud</strong><span>Iniciar una nueva captura de venta.</span></div>
       </a>
@@ -64,6 +65,12 @@ $email = htmlspecialchars((string) ($user['email'] ?? ''), ENT_QUOTES, 'UTF-8');
         <span class="menu-icon">✓</span>
         <div><strong>Solicitudes aprobadas</strong><span><b id="countAprobadas">0</b> con Vo.Bo. aprobado.</span></div>
       </button>
+      <?php if ($voboRole !== ''): ?>
+      <a class="menu-card menu-card-vobo" href="/solicitud-venta/vobo/">
+        <span class="menu-icon">✓</span>
+        <div><strong>Vo.Bo. de solicitudes</strong><span>Revisar solicitudes pendientes como <?= htmlspecialchars($voboRole, ENT_QUOTES, 'UTF-8') ?>.</span></div>
+      </a>
+      <?php endif; ?>
     </section>
 
     <div id="message" class="message" role="status"></div>
@@ -80,6 +87,6 @@ $email = htmlspecialchars((string) ($user['email'] ?? ''), ENT_QUOTES, 'UTF-8');
     </section>
   </main>
 
-  <script src="./inicio.js?v=20260820-2"></script>
+  <script src="./inicio.js?v=20260820-3"></script>
 </body>
 </html>
