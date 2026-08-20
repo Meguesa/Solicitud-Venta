@@ -52,7 +52,7 @@ $email = htmlspecialchars((string) ($user['email'] ?? ''), ENT_QUOTES, 'UTF-8');
     </section>
 
     <section class="menu-grid" aria-label="Opciones de Solicitud de Venta">
-      <a class="menu-card menu-card-new" href="/solicitud-venta/">
+      <a id="newRequestLink" class="menu-card menu-card-new" href="/solicitud-venta/" data-login-hint="<?= $email ?>">
         <span class="menu-icon">＋</span>
         <div><strong>Nueva solicitud</strong><span>Iniciar una nueva captura de venta.</span></div>
       </a>
@@ -80,6 +80,6 @@ $email = htmlspecialchars((string) ($user['email'] ?? ''), ENT_QUOTES, 'UTF-8');
     </section>
   </main>
 
-  <script src="./inicio.js?v=20260820-1"></script>
+  <script src="./inicio.js?v=20260820-2"></script>
 </body>
 </html>
