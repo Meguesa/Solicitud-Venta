@@ -67,15 +67,48 @@
   }
 
   function observarCambios(form) {
-    observer = new MutationObserver(() => {
+    observer = new MutationObserver((mutations) => {
       if (enResumen) return;
+
+      // El wizard modifica continuamente textos, clases y controles dentro del
+      // formulario. Esos cambios NO deben volver a ejecutar el observer porque
+      // crearían un ciclo de MutationObserver que bloquea el hilo principal.
+      // Solo recalculamos páginas cuando se agrega/elimina una sección completa
+      // o cuando cambia el atributo hidden de una sección del formulario.
+      const cambioDePaginas = mutations.some((mutation) => {
+        if (mutation.type === 'attributes') {
+          const target = mutation.target;
+          return target instanceof HTMLElement
+            && target.matches('section.form-section')
+            && target.id !== 'wizardSummary';
+        }
+
+        if (mutation.type === 'childList') {
+          const nodes = [...mutation.addedNodes, ...mutation.removedNodes];
+          return nodes.some((node) => node instanceof HTMLElement && (
+            node.matches('section.form-section')
+            || Boolean(node.querySelector?.('section.form-section'))
+          ));
+        }
+
+        return false;
+      });
+
+      if (!cambioDePaginas) return;
+
       const paginas = paginasDisponibles();
       if (!paginas.length) return;
       if (paginaActual >= paginas.length) paginaActual = paginas.length - 1;
       aplicarVisibilidad(paginas);
       actualizarControles(paginas);
     });
-    observer.observe(form, { attributes: true, attributeFilter: ['hidden'], subtree: true, childList: true });
+
+    observer.observe(form, {
+      attributes: true,
+      attributeFilter: ['hidden'],
+      subtree: true,
+      childList: true
+    });
   }
 
   function paginasDisponibles() {
