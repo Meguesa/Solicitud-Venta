@@ -100,6 +100,13 @@
     const cambio = ultimoEstatus !== estatus;
     ultimoEstatus = estatus;
 
+    // BORRADOR permanece editable. El seguimiento solo debe bloquear una
+    // solicitud cuando ya salió formalmente de la captura del vendedor.
+    if (estatus === "BORRADOR") {
+      restaurarBorradorSiFueBloqueado();
+      return;
+    }
+
     if (estatus === "PENDIENTE FIRMA") {
       bloquear("Pendiente de firma", estatus);
       const reset = document.getElementById("btnReset");
@@ -125,6 +132,33 @@
     }
 
     bloquear(estatus, estatus);
+  }
+
+  function restaurarBorradorSiFueBloqueado() {
+    const validar = document.getElementById("btnValidate");
+    const textoActual = validar?.textContent?.trim().toUpperCase() || "";
+    const bloqueadoPorMonitor = document.body.dataset.solicitudEstatus === "BORRADOR" || textoActual === "BORRADOR";
+    if (!bloqueadoPorMonitor) return;
+
+    delete document.body.dataset.solicitudEstatus;
+
+    const pill = document.querySelector(".status-pill");
+    if (pill) pill.textContent = "BORRADOR";
+
+    const guardar = document.getElementById("btnSaveDraft");
+    if (guardar) guardar.disabled = false;
+
+    if (validar) {
+      validar.disabled = false;
+      const remota = document.getElementById("modalidadFirma")?.value === "REMOTA";
+      validar.textContent = remota ? "Enviar a firma" : "Validar solicitud";
+    }
+
+    const reset = document.getElementById("btnReset");
+    if (reset) {
+      reset.disabled = false;
+      reset.textContent = "Limpiar";
+    }
   }
 
   function bloquear(textoBoton, estatus) {
