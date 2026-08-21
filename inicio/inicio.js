@@ -74,14 +74,20 @@
     link.className = 'request-card';
     const folio = String(item.folio || '');
     const itemId = String(item.itemId || '').trim();
+    const voboEstatus = String(item.voboEstatus || '').trim().toUpperCase();
+    const estatusBase = String(item.estatus || '').trim().toUpperCase();
+    const esCorreccion = voboEstatus === 'CORRECCION' || estatusBase === 'CORRECCION';
+    const estatusVisible = esCorreccion ? 'CORRECCION' : (item.estatus || '—');
+
     const params = new URLSearchParams({ folio });
     if (/^\d+$/.test(itemId)) params.set('itemId', itemId);
+    if (esCorreccion) params.set('correccion', '1');
     link.href = `/solicitud-venta/?${params.toString()}`;
 
     link.append(
       campo('Folio', item.folio || '—'),
       campo('Cliente', item.cliente || '—'),
-      campo('Estatus', item.estatus || '—', true),
+      campo('Estatus', estatusVisible, true),
       campo('Componentes', String(item.componentes || 1)),
       campo('Precio total', moneda(item.precioTotal))
     );
@@ -96,7 +102,8 @@
     const strong = document.createElement('strong');
     if (estatus) {
       const badge = document.createElement('span');
-      badge.className = `status-badge${String(valor).toUpperCase() === 'APROBADA' ? ' approved' : ''}`;
+      const valorNormalizado = String(valor).toUpperCase();
+      badge.className = `status-badge${valorNormalizado === 'APROBADA' ? ' approved' : ''}`;
       badge.textContent = valor;
       strong.appendChild(badge);
     } else {
