@@ -59,7 +59,7 @@
 
     titulo.textContent = vista === 'aprobadas' ? 'Solicitudes aprobadas' : 'Solicitudes pendientes';
     subtitulo.textContent = vista === 'aprobadas'
-      ? `${lista.length} solicitud(es) con Vo.Bo. aprobado.`
+      ? `${lista.length} solicitud(es) con aprobación final.`
       : `${lista.length} solicitud(es) en seguimiento.`;
 
     contenedor.innerHTML = '';
