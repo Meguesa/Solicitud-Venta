@@ -3,12 +3,45 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
-portal_require_vobo();
+
+$etapa = strtolower(trim((string) ($_GET['etapa'] ?? '')));
+if ($etapa === '') {
+    if (portal_user_can_vobo()) {
+        $etapa = 'comercial';
+    } elseif (portal_user_can_cobranza_vobo()) {
+        $etapa = 'cobranza';
+    } else {
+        portal_require_authentication();
+        http_response_code(403);
+        exit('Tu cuenta no tiene autorización para revisar solicitudes.');
+    }
+}
+if (!in_array($etapa, ['comercial', 'cobranza'], true)) {
+    http_response_code(400);
+    exit('La etapa de Vo.Bo. indicada no es válida.');
+}
+if ($etapa === 'cobranza') {
+    portal_require_cobranza_vobo();
+} else {
+    portal_require_vobo();
+}
 
 $user = portal_user();
 $name = htmlspecialchars((string) ($user['name'] ?? 'Usuario'), ENT_QUOTES, 'UTF-8');
 $email = htmlspecialchars((string) ($user['email'] ?? ''), ENT_QUOTES, 'UTF-8');
-$role = htmlspecialchars(portal_vobo_role(), ENT_QUOTES, 'UTF-8');
+$isCobranza = $etapa === 'cobranza';
+$role = htmlspecialchars($isCobranza ? 'COBRANZA' : portal_vobo_role(), ENT_QUOTES, 'UTF-8');
+$pageTitle = $isCobranza ? 'Vo.Bo. de Cobranza' : 'Vo.Bo. Comercial';
+$introTitle = $isCobranza ? 'Solicitudes pendientes de Cobranza' : 'Solicitudes pendientes de revisión comercial';
+$introText = $isCobranza
+    ? 'Revisa la solicitud ya autorizada por Comercial antes de emitir el Vo.Bo. final de Cobranza.'
+    : 'Revisa la información capturada por el vendedor y los componentes antes de autorizar su envío a Cobranza.';
+$pendingStatus = $isCobranza ? 'PENDIENTE COBRANZA' : 'PENDIENTE VOBO';
+$decisionTitle = $isCobranza ? 'Decisión de Cobranza' : 'Decisión de Vo.Bo. Comercial';
+$decisionText = $isCobranza
+    ? 'Aprueba la solicitud si la información y condiciones de cobro son correctas. Si requiere cambios, solicita una corrección indicando el motivo.'
+    : 'Aprueba la solicitud si la información comercial es correcta. Al aprobarla pasará a Vo.Bo. de Cobranza.';
+$approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
 ?>
 <!doctype html>
 <html lang="es-MX">
@@ -16,7 +49,7 @@ $role = htmlspecialchars(portal_vobo_role(), ENT_QUOTES, 'UTF-8');
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#225b8a">
-  <title>Vo.Bo. de Solicitudes | Jardines de Juan Pablo</title>
+  <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?> | Jardines de Juan Pablo</title>
   <link rel="stylesheet" href="/assets/css/account-menu.css">
   <link rel="stylesheet" href="./vobo.css?v=20260820-4">
 </head>
@@ -25,7 +58,7 @@ $role = htmlspecialchars(portal_vobo_role(), ENT_QUOTES, 'UTF-8');
     <div class="vobo-shell vobo-header-inner">
       <div>
         <p>Jardines de Juan Pablo</p>
-        <h1>Vo.Bo. de Solicitudes</h1>
+        <h1><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></h1>
       </div>
       <div class="vobo-header-actions">
         <a href="/" class="secondary-link">Regresar al portal</a>
@@ -46,8 +79,8 @@ $role = htmlspecialchars(portal_vobo_role(), ENT_QUOTES, 'UTF-8');
     <section class="intro-card">
       <div>
         <span class="role-pill"><?= $role ?></span>
-        <h2>Solicitudes pendientes de revisión</h2>
-        <p>Revisa la información capturada por el vendedor y los componentes antes de dar el Vo.Bo.</p>
+        <h2><?= htmlspecialchars($introTitle, ENT_QUOTES, 'UTF-8') ?></h2>
+        <p><?= htmlspecialchars($introText, ENT_QUOTES, 'UTF-8') ?></p>
       </div>
       <div class="intro-actions">
         <a href="/solicitud-venta/inicio/" class="secondary-link">Regresar a inicio</a>
@@ -65,7 +98,7 @@ $role = htmlspecialchars(portal_vobo_role(), ENT_QUOTES, 'UTF-8');
         </div>
       </div>
       <div id="requestsList" class="requests-list"></div>
-      <div id="emptyState" class="empty-state" hidden>No hay solicitudes pendientes de Vo.Bo.</div>
+      <div id="emptyState" class="empty-state" hidden>No hay solicitudes pendientes en esta etapa.</div>
     </section>
 
     <section id="detailPanel" class="panel" hidden>
@@ -75,7 +108,7 @@ $role = htmlspecialchars(portal_vobo_role(), ENT_QUOTES, 'UTF-8');
           <h2 id="detailFolio">Solicitud</h2>
           <p id="detailClient"></p>
         </div>
-        <span id="detailStatus" class="status-pill">PENDIENTE VOBO</span>
+        <span id="detailStatus" class="status-pill"><?= htmlspecialchars($pendingStatus, ENT_QUOTES, 'UTF-8') ?></span>
       </div>
 
       <div id="summaryGrid" class="summary-grid"></div>
@@ -98,12 +131,12 @@ $role = htmlspecialchars(portal_vobo_role(), ENT_QUOTES, 'UTF-8');
 
       <section class="decision-panel" aria-labelledby="decisionTitle">
         <div class="decision-copy">
-          <strong id="decisionTitle">Decisión de Vo.Bo.</strong>
-          <p>Aprueba la solicitud si la información es correcta. Si requiere cambios, solicita una corrección indicando el motivo.</p>
+          <strong id="decisionTitle"><?= htmlspecialchars($decisionTitle, ENT_QUOTES, 'UTF-8') ?></strong>
+          <p><?= htmlspecialchars($decisionText, ENT_QUOTES, 'UTF-8') ?></p>
         </div>
         <div class="decision-actions">
           <button id="btnSolicitarCorreccion" type="button" class="correction-button">Solicitar corrección</button>
-          <button id="btnAprobarVobo" type="button" class="approve-button">Aprobar Vo.Bo.</button>
+          <button id="btnAprobarVobo" type="button" class="approve-button"><?= htmlspecialchars($approveLabel, ENT_QUOTES, 'UTF-8') ?></button>
         </div>
 
         <div id="correctionPanel" class="correction-panel" hidden>
@@ -119,9 +152,24 @@ $role = htmlspecialchars(portal_vobo_role(), ENT_QUOTES, 'UTF-8');
     </section>
   </main>
 
-  <script src="./vobo.js?v=20260820-3"></script>
+  <script>
+    window.SOLICITUD_VOBO_ETAPA = <?= json_encode($etapa, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+    (() => {
+      const nativeFetch = window.fetch.bind(window);
+      window.fetch = (input, init) => {
+        let target = input;
+        if (typeof target === 'string' && target.includes('/api/solicitud-venta/vobo.php') && !/[?&]etapa=/.test(target)) {
+          target += `${target.includes('?') ? '&' : '?'}etapa=${encodeURIComponent(window.SOLICITUD_VOBO_ETAPA || 'comercial')}`;
+        }
+        return nativeFetch(target, init);
+      };
+    })();
+  </script>
+  <script src="./vobo.js?v=20260821-1"></script>
   <script>
   (() => {
+    const ETAPA = window.SOLICITUD_VOBO_ETAPA || 'comercial';
+    const ES_COBRANZA = ETAPA === 'cobranza';
     const API = '/api/solicitud-venta/vobo.php';
     const btnAprobar = document.getElementById('btnAprobarVobo');
     const btnCorreccion = document.getElementById('btnSolicitarCorreccion');
@@ -140,14 +188,18 @@ $role = htmlspecialchars(portal_vobo_role(), ENT_QUOTES, 'UTF-8');
     async function aprobar() {
       const folio = obtenerFolio();
       if (!folio) return mostrarMensaje('No se pudo identificar el folio de la solicitud.', 'error');
-      if (!window.confirm(`¿Aprobar el Vo.Bo. de ${folio}?\n\nTodos los componentes del grupo pasarán de PENDIENTE VOBO a APROBADA.`)) return;
+      const cambio = ES_COBRANZA
+        ? 'Todos los componentes pasarán de PENDIENTE COBRANZA a APROBADA.'
+        : 'Todos los componentes pasarán de PENDIENTE VOBO a PENDIENTE COBRANZA.';
+      const titulo = ES_COBRANZA ? '¿Aprobar el Vo.Bo. de Cobranza' : '¿Aprobar el Vo.Bo. Comercial';
+      if (!window.confirm(`${titulo} de ${folio}?\n\n${cambio}`)) return;
 
       bloquear(true);
       mostrarMensaje(`Aprobando ${folio}...`);
       try {
         const data = await llamarApi({ accion: 'aprobar', folio });
-        document.getElementById('detailStatus').textContent = data.estatus || 'APROBADA';
-        mostrarMensaje(data.message || `Vo.Bo. de ${folio} aprobado correctamente.`, 'ok');
+        document.getElementById('detailStatus').textContent = data.estatus || (ES_COBRANZA ? 'APROBADA' : 'PENDIENTE COBRANZA');
+        mostrarMensaje(data.message || `${folio} aprobado correctamente.`, 'ok');
         setTimeout(() => window.location.reload(), 900);
       } catch (error) {
         mostrarMensaje(error.message || String(error), 'error');
@@ -174,7 +226,8 @@ $role = htmlspecialchars(portal_vobo_role(), ENT_QUOTES, 'UTF-8');
         correctionReason?.focus();
         return mostrarMensaje('Escribe un motivo de corrección claro antes de continuar.', 'error');
       }
-      if (!window.confirm(`¿Enviar ${folio} a CORRECCION?\n\nEl motivo quedará registrado para que el vendedor pueda atenderlo.`)) return;
+      const origen = ES_COBRANZA ? 'Cobranza' : 'Vo.Bo. Comercial';
+      if (!window.confirm(`¿Enviar ${folio} a CORRECCION desde ${origen}?\n\nEl motivo quedará registrado para que el vendedor pueda atenderlo.`)) return;
 
       bloquear(true);
       mostrarMensaje(`Enviando ${folio} a corrección...`);
