@@ -1,8 +1,10 @@
 (() => {
   const ENDPOINT = "/api/solicitud-venta/gestionar-firma-remota.php";
+  const ESTADO_ENDPOINT = "/api/solicitud-venta/estado-solicitud.php";
   const STORAGE_PREFIX = "solicitudVenta:borradorActivo:v1:";
   let inicializado = false;
   let procesando = false;
+  let lugarRestaurado = false;
 
   function iniciar() {
     if (inicializado) return;
@@ -14,8 +16,13 @@
 
     inicializado = true;
     insertarPanel(section);
+    restaurarEnlaceLocal();
     actualizarPanel();
-    setInterval(actualizarPanel, 900);
+    setTimeout(restaurarLugarDesdeServidor, 250);
+    setInterval(() => {
+      restaurarEnlaceLocal();
+      actualizarPanel();
+    }, 900);
   }
 
   if (document.readyState === "loading") {
@@ -55,22 +62,113 @@
 
     const estatus = String(document.body.dataset.solicitudEstatus || document.querySelector(".status-pill")?.textContent || "")
       .trim().toUpperCase();
-    const pendiente = estatus.includes("PENDIENTE FIRMA") || document.getElementById("btnValidate")?.textContent?.trim().toUpperCase() === "PENDIENTE DE FIRMA";
+    const textoBoton = document.getElementById("btnValidate")?.textContent?.trim().toUpperCase() || "";
+    const textoMensaje = document.getElementById("formMessage")?.textContent?.trim().toUpperCase() || "";
+    const referencia = leerReferenciaLocal();
+    const estatusLocal = String(referencia?.estatus || "").trim().toUpperCase();
+    const pendiente = estatus.includes("PENDIENTE FIRMA")
+      || textoBoton === "PENDIENTE DE FIRMA"
+      || textoBoton === "PENDIENTE FIRMA"
+      || textoMensaje.includes("PENDIENTE DE FIRMA")
+      || textoMensaje.includes("PENDIENTE FIRMA")
+      || estatusLocal === "PENDIENTE FIRMA";
 
     panel.hidden = !pendiente;
     if (!pendiente) return;
 
+    const url = String(document.getElementById("firmaRemotaUrl")?.value || referencia?.firmaUrl || "").trim();
     const regenerar = document.getElementById("btnRegenerarFirmaRemota");
     const cancelar = document.getElementById("btnCancelarFirmaRemota");
-    if (regenerar) regenerar.disabled = procesando;
+    const estado = document.getElementById("firmaRemotaGestionEstado");
+
+    if (regenerar) {
+      regenerar.disabled = procesando;
+      regenerar.textContent = url ? "Regenerar enlace" : "Generar enlace";
+    }
     if (cancelar) cancelar.disabled = procesando;
+    if (estado && !procesando) {
+      estado.textContent = url
+        ? "El enlace de firma está disponible. Puedes copiarlo o regenerarlo si necesitas invalidar el anterior."
+        : "La solicitud está pendiente de firma, pero el enlace no está disponible en este navegador. Genera uno nuevo para continuar.";
+    }
+  }
+
+  function restaurarEnlaceLocal() {
+    const referencia = leerReferenciaLocal();
+    const folio = obtenerFolio();
+    const folioGuardado = String(referencia?.folio || "").trim().toUpperCase();
+    const url = String(referencia?.firmaUrl || "").trim();
+    if (!folio || folioGuardado !== folio || !url) return;
+
+    const input = document.getElementById("firmaRemotaUrl");
+    const resultBox = document.getElementById("firmaRemotaResultado");
+    if (input && input.value !== url) input.value = url;
+    if (resultBox) resultBox.hidden = false;
+  }
+
+  async function restaurarLugarDesdeServidor() {
+    if (lugarRestaurado) return;
+    const lugar = document.getElementById("lugar");
+    if (!(lugar instanceof HTMLSelectElement)) return;
+    if (String(lugar.value || "").trim() !== "") {
+      lugarRestaurado = true;
+      return;
+    }
+
+    const folio = obtenerFolio();
+    if (!folio) return;
+
+    try {
+      const token = await window.solicitudVentaAuth.getBackendAccessToken();
+      if (!token) return;
+
+      const response = await fetch(ESTADO_ENDPOINT, {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ accion: "cargar", folio })
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.ok) return;
+
+      const valorLugar = String(data?.estado?.controles?.lugar?.valor || "").trim();
+      if (!valorLugar || String(lugar.value || "").trim() !== "") {
+        lugarRestaurado = true;
+        return;
+      }
+
+      let opcion = Array.from(lugar.options).find((item) =>
+        item.value.trim().toUpperCase() === valorLugar.toUpperCase()
+        || item.textContent.trim().toUpperCase() === valorLugar.toUpperCase()
+      );
+      if (!opcion) {
+        opcion = document.createElement("option");
+        opcion.value = valorLugar;
+        opcion.textContent = valorLugar;
+        lugar.appendChild(opcion);
+      }
+
+      lugar.value = opcion.value;
+      lugar.dispatchEvent(new Event("change", { bubbles: true }));
+      lugarRestaurado = true;
+    } catch (error) {
+      console.warn("No fue posible restaurar Lugar desde el estado del servidor:", error);
+    }
   }
 
   async function regenerarEnlace() {
     if (procesando) return;
     const folio = obtenerFolio();
     if (!folio) return mostrarMensaje("No fue posible identificar el folio de la solicitud.", "error");
-    if (!window.confirm("Se invalidará inmediatamente el enlace anterior y se generará uno nuevo. ¿Deseas continuar?")) return;
+
+    const urlActual = String(document.getElementById("firmaRemotaUrl")?.value || leerReferenciaLocal()?.firmaUrl || "").trim();
+    const confirmacion = urlActual
+      ? "Se invalidará inmediatamente el enlace anterior y se generará uno nuevo. ¿Deseas continuar?"
+      : "Se generará un nuevo enlace de firma para el cliente. ¿Deseas continuar?";
+    if (!window.confirm(confirmacion)) return;
 
     procesando = true;
     actualizarPanel();
@@ -87,11 +185,11 @@
       guardarUrlLocal(folio, url);
 
       const estado = document.getElementById("firmaRemotaGestionEstado");
-      if (estado) estado.textContent = "Enlace regenerado. El enlace anterior quedó invalidado.";
-      mostrarMensaje(`Nuevo enlace generado para ${folio}. El enlace anterior ya no es válido.`, "ok");
+      if (estado) estado.textContent = "Enlace generado correctamente. Si existía uno anterior, quedó invalidado.";
+      mostrarMensaje(`Enlace de firma generado para ${folio}. Ya puedes copiarlo y compartirlo con el cliente.`, "ok");
     } catch (error) {
       console.error("Regenerar enlace de firma:", error);
-      mostrarMensaje(`No fue posible regenerar el enlace: ${error.message || error}`, "error");
+      mostrarMensaje(`No fue posible generar el enlace: ${error.message || error}`, "error");
     } finally {
       procesando = false;
       actualizarPanel();
@@ -154,12 +252,29 @@
       const raw = localStorage.getItem(key);
       const actual = raw ? JSON.parse(raw) : {};
       const itemId = actual?.itemId || String(Number(folio.split("-").pop() || 0) || "");
-      const nuevo = { ...actual, folio, itemId, actualizado: new Date().toISOString() };
+      const nuevo = {
+        ...actual,
+        folio,
+        itemId,
+        estatus: "PENDIENTE FIRMA",
+        actualizado: new Date().toISOString()
+      };
       if (firmaUrl) nuevo.firmaUrl = firmaUrl;
       else delete nuevo.firmaUrl;
       localStorage.setItem(key, JSON.stringify(nuevo));
     } catch (error) {
       console.warn("No fue posible actualizar el enlace local de firma:", error);
+    }
+  }
+
+  function leerReferenciaLocal() {
+    const key = claveStorage();
+    if (!key) return null;
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
     }
   }
 
