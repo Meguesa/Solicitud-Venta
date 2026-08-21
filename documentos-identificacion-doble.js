@@ -28,6 +28,7 @@
     enlazarArchivos(section);
     instalarPuenteExpediente(extras);
     instalarValidacion(section);
+    instalarGuardian(section);
     inicializado = true;
   }
 
@@ -35,6 +36,31 @@
     document.addEventListener('DOMContentLoaded', () => setTimeout(iniciar, 0));
   } else {
     setTimeout(iniciar, 0);
+  }
+
+  function instalarGuardian(section) {
+    if (section.dataset.dobleIdentificacionGuardian === '1') return;
+    section.dataset.dobleIdentificacionGuardian = '1';
+
+    let reparando = false;
+    const reparar = () => {
+      if (reparando) return;
+      const grid = section.querySelector('.upload-grid');
+      if (!grid) return;
+
+      const faltaTitular = Boolean(grid.querySelector('[data-document-type="ID_TITULAR"]:not([data-document-key])'));
+      const faltaSustituto = Boolean(grid.querySelector('[data-document-type="ID_SUSTITUTO"]:not([data-document-key])'));
+      if (!faltaTitular && !faltaSustituto) return;
+
+      reparando = true;
+      reemplazarIdentificaciones(grid);
+      enlazarArchivos(section);
+      reparando = false;
+    };
+
+    const observer = new MutationObserver(() => queueMicrotask(reparar));
+    observer.observe(section, { childList: true, subtree: true });
+    setTimeout(reparar, 0);
   }
 
   function reemplazarIdentificaciones(grid) {
