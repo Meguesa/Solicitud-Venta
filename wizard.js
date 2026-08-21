@@ -95,6 +95,10 @@
     if (!boton || boton.dataset.wizardSaveDispatch === '1') return;
     boton.dataset.wizardSaveDispatch = '1';
 
+    // app.js enlaza inicialmente el boton a la funcion original. Los modulos de
+    // Componentes y Persistencia reemplazan despues window.guardarBorrador para
+    // ejecutar una cadena completa de guardado. Este listener en fase de captura
+    // evita ejecutar la referencia antigua y llama siempre a la version vigente.
     boton.addEventListener('click', async (event) => {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -159,7 +163,7 @@
 
   function mostrarPagina(indice, scroll = true) {
     enResumen = false;
-    if (summary) summary.hidden = true;
+    summary.hidden = true;
     const paginas = paginasDisponibles();
     if (!paginas.length) return;
     paginaActual = Math.max(0, Math.min(indice, paginas.length - 1));
@@ -198,10 +202,7 @@
     if (title) title.textContent = titulo;
     if (bar) bar.style.width = `${((paginaActual + 1) / total) * 100}%`;
     if (back) back.disabled = paginaActual === 0;
-    if (next) {
-      next.hidden = false;
-      next.textContent = paginaActual === paginas.length - 1 ? 'Revisar solicitud →' : 'Siguiente →';
-    }
+    if (next) next.textContent = paginaActual === paginas.length - 1 ? 'Revisar solicitud →' : 'Siguiente →';
     if (hint) hint.textContent = paginaActual === paginas.length - 1
       ? 'Continúa para revisar el resumen completo antes de enviar.'
       : 'Completa esta sección para continuar.';
@@ -233,8 +234,6 @@
   }
 
   function validarSeccion(section) {
-    if (section?.id === 'firmasSection') return validarFirmas(section);
-
     const controles = controlesValidables(section);
     for (const control of controles) {
       if (!control.checkValidity()) {
@@ -245,37 +244,6 @@
         return false;
       }
     }
-    return true;
-  }
-
-  function validarFirmas(section) {
-    const modalidad = section?.querySelector('#modalidadFirma') || document.getElementById('modalidadFirma');
-    const valorModalidad = String(modalidad?.value || '').trim().toUpperCase();
-    if (!valorModalidad) {
-      modalidad?.focus({ preventScroll: true });
-      modalidad?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      mostrarMensaje('Selecciona la modalidad de firma antes de continuar.', 'error');
-      return false;
-    }
-
-    const expediente = window.solicitudVentaExtras?.capturarEstadoExpediente?.() || {};
-    const firmas = expediente?.firmas && typeof expediente.firmas === 'object' ? expediente.firmas : {};
-    const firmaVendedor = Boolean(firmas.FIRMA_VENDEDOR);
-    const firmaCliente = Boolean(firmas.FIRMA_CLIENTE);
-    const remota = valorModalidad === 'REMOTA';
-
-    if (!firmaVendedor) {
-      document.querySelector('[data-signature-type="FIRMA_VENDEDOR"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      mostrarMensaje('La firma del vendedor es obligatoria antes de revisar la solicitud.', 'error');
-      return false;
-    }
-
-    if (!remota && !firmaCliente) {
-      document.querySelector('[data-signature-type="FIRMA_CLIENTE"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      mostrarMensaje('La firma del cliente es obligatoria antes de revisar la solicitud.', 'error');
-      return false;
-    }
-
     return true;
   }
 
@@ -291,16 +259,7 @@
     }
 
     for (let index = 0; index < paginas.length; index += 1) {
-      const section = paginas[index];
-      if (section?.id === 'firmasSection') {
-        if (!validarFirmas(section)) {
-          mostrarPagina(index);
-          return false;
-        }
-        continue;
-      }
-
-      const invalid = controlesValidables(section).find((control) => !control.checkValidity());
+      const invalid = controlesValidables(paginas[index]).find((control) => !control.checkValidity());
       if (!invalid) continue;
       mostrarPagina(index);
       invalid.reportValidity();
@@ -323,165 +282,100 @@
   }
 
   function mostrarResumen(paginas) {
-    const next = document.getElementById('wizardNext');
-    if (next) next.disabled = true;
+    enResumen = true;
+    document.querySelectorAll('#solicitudForm > section.form-section').forEach((section) => section.classList.add('wizard-page-hidden'));
+    construirResumen(paginas);
+    summary.hidden = false;
 
-    try {
-      construirResumenLigero(paginas);
-      enResumen = true;
-      document.querySelectorAll('#solicitudForm > section.form-section').forEach((section) => section.classList.add('wizard-page-hidden'));
-      summary.hidden = false;
-
-      const total = paginas.length + 1;
-      const label = document.getElementById('wizardStepLabel');
-      const title = document.getElementById('wizardStepTitle');
-      const bar = document.getElementById('wizardProgressBar');
-      const back = document.getElementById('wizardBack');
-      const hint = document.getElementById('wizardNavHint');
-
-      if (label) label.textContent = `Paso ${total} de ${total}`;
-      if (title) title.textContent = 'Resumen de la solicitud';
-      if (bar) bar.style.width = '100%';
-      if (back) back.disabled = false;
-      if (next) next.hidden = true;
-      if (hint) hint.textContent = 'Revisa toda la información. Si todo es correcto, utiliza las acciones inferiores para guardar o enviar.';
-      controlarBotonFinal(true);
-      header?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } catch (error) {
-      console.error('No fue posible construir el resumen de la solicitud:', error);
-      enResumen = false;
-      if (next) {
-        next.hidden = false;
-        next.disabled = false;
-      }
-      mostrarMensaje(`No fue posible mostrar el resumen: ${error.message || error}`, 'error');
-    }
+    const total = paginas.length + 1;
+    document.getElementById('wizardStepLabel').textContent = `Paso ${total} de ${total}`;
+    document.getElementById('wizardStepTitle').textContent = 'Resumen de la solicitud';
+    document.getElementById('wizardProgressBar').style.width = '100%';
+    document.getElementById('wizardBack').disabled = false;
+    document.getElementById('wizardNext').hidden = true;
+    document.getElementById('wizardNavHint').textContent = 'Revisa toda la información. Si todo es correcto, utiliza las acciones inferiores para guardar o enviar.';
+    controlarBotonFinal(true);
+    header?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  function construirResumenLigero(paginas) {
-    if (!summary) throw new Error('No fue posible localizar el contenedor del resumen.');
+  function construirResumen(paginas) {
+    summary.innerHTML = `
+      <div class="wizard-summary-heading">
+        <span>Resumen final</span>
+        <h3>Revisa toda la solicitud</h3>
+        <p>Esta vista reúne las secciones capturadas antes de guardar o enviar la solicitud.</p>
+      </div>`;
 
-    const fragment = document.createDocumentFragment();
-    const heading = document.createElement('div');
-    heading.className = 'wizard-summary-heading';
-    heading.innerHTML = '<span>Resumen final</span><h3>Revisa toda la solicitud</h3><p>Esta vista reúne las secciones capturadas antes de guardar o enviar la solicitud.</p>';
-    fragment.appendChild(heading);
+    paginas.forEach((section) => {
+      const clone = section.cloneNode(true);
 
-    paginas.forEach((section, sectionIndex) => {
-      const bloque = document.createElement('section');
-      bloque.className = 'form-section wizard-summary-section';
+      // cloneNode copia la estructura/atributos, pero no garantiza copiar el
+      // estado vivo de controles modificados por el usuario. En particular, los
+      // <select> regresaban visualmente a la opcion inicial "Selecciona" en el
+      // resumen aunque el formulario original tuviera una opcion valida elegida.
+      copiarEstadoFormulario(section, clone);
 
-      const encabezado = document.createElement('div');
-      encabezado.className = 'section-title';
-      const circulo = document.createElement('span');
-      circulo.textContent = String(sectionIndex + 1);
-      const copia = document.createElement('div');
-      const titulo = document.createElement('h3');
-      titulo.textContent = nombreSeccion(section) || `Sección ${sectionIndex + 1}`;
-      copia.appendChild(titulo);
-      encabezado.append(circulo, copia);
-      bloque.appendChild(encabezado);
-
-      const valores = document.createElement('div');
-      valores.className = 'component-summary';
-      const claves = new Set();
-
-      section.querySelectorAll('input, select, textarea').forEach((control) => {
-        if (!(control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement)) return;
-        if (control.closest('[hidden]')) return;
-        if (control instanceof HTMLInputElement && ['file', 'button', 'submit', 'reset', 'hidden'].includes(control.type)) return;
-
-        const etiqueta = etiquetaControl(control);
-        if (!etiqueta) return;
-        const valor = valorControl(control);
-        agregarValorResumen(valores, claves, etiqueta, valor);
+      clone.removeAttribute('id');
+      clone.classList.remove('wizard-page-hidden', 'wizard-page-active');
+      clone.classList.add('wizard-summary-section');
+      clone.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
+      clone.querySelectorAll('button').forEach((button) => button.remove());
+      clone.querySelectorAll('input[type="file"]').forEach((input) => input.remove());
+      clone.querySelectorAll('input, select, textarea').forEach((control) => {
+        control.disabled = true;
+        control.removeAttribute('required');
+        control.removeAttribute('name');
       });
-
-      section.querySelectorAll('.component-summary > div').forEach((card) => {
-        const etiqueta = card.querySelector('span')?.textContent?.trim() || '';
-        const valor = card.querySelector('strong')?.textContent?.trim() || '';
-        if (etiqueta) agregarValorResumen(valores, claves, etiqueta, valor);
+      clone.querySelectorAll('canvas').forEach((canvas) => {
+        const firma = document.createElement('div');
+        firma.className = 'wizard-signature-summary';
+        firma.textContent = 'Firma registrada / consultar expediente';
+        canvas.replaceWith(firma);
       });
-
-      if (section.id === 'documentosSection') {
-        section.querySelectorAll('.upload-card').forEach((card) => {
-          const etiqueta = card.querySelector('strong')?.textContent?.trim() || 'Documento';
-          const estado = card.querySelector('.file-status')?.textContent?.trim() || '';
-          agregarValorResumen(valores, claves, etiqueta, estado || 'Sin archivo seleccionado');
-        });
-      }
-
-      if (section.id === 'firmasSection') {
-        section.querySelectorAll('[data-signature-type]').forEach((card) => {
-          const etiqueta = card.querySelector('.signature-header strong')?.textContent?.trim() || 'Firma';
-          const estado = card.querySelector('[data-signature-status]')?.textContent?.trim() || 'Firma registrada / consultar expediente';
-          agregarValorResumen(valores, claves, etiqueta, estado);
-        });
-      }
-
-      if (!valores.children.length) {
-        agregarValorResumen(valores, claves, 'Información', 'Sin datos adicionales para mostrar.');
-      }
-
-      bloque.appendChild(valores);
-      fragment.appendChild(bloque);
+      summary.appendChild(clone);
     });
-
-    summary.replaceChildren(fragment);
   }
 
-  function etiquetaControl(control) {
-    const label = control.closest('label');
-    if (label) {
-      const textoDirecto = Array.from(label.childNodes)
-        .filter((node) => node.nodeType === Node.TEXT_NODE)
-        .map((node) => String(node.textContent || '').trim())
-        .filter(Boolean)
-        .join(' ')
-        .trim();
-      if (textoDirecto) return textoDirecto;
-    }
+  function copiarEstadoFormulario(originalSection, clonedSection) {
+    const originales = Array.from(originalSection.querySelectorAll('input, select, textarea'));
+    const clonados = Array.from(clonedSection.querySelectorAll('input, select, textarea'));
 
-    return String(control.getAttribute('aria-label') || control.id || '')
-      .replace(/[_-]+/g, ' ')
-      .trim();
-  }
+    originales.forEach((original, index) => {
+      const clone = clonados[index];
+      if (!clone) return;
 
-  function valorControl(control) {
-    if (control instanceof HTMLInputElement && (control.type === 'checkbox' || control.type === 'radio')) {
-      return control.checked ? 'Sí' : 'No';
-    }
-    if (control instanceof HTMLSelectElement) {
-      return control.selectedOptions[0]?.textContent?.trim() || control.value || '—';
-    }
-    return String(control.value ?? '').trim() || '—';
-  }
+      if (original instanceof HTMLSelectElement && clone instanceof HTMLSelectElement) {
+        // Copiar selectedness real, no solo el atributo selected del HTML inicial.
+        Array.from(clone.options).forEach((option, optionIndex) => {
+          option.selected = Boolean(original.options[optionIndex]?.selected);
+        });
+        clone.value = original.value;
+        return;
+      }
 
-  function agregarValorResumen(container, claves, etiqueta, valor) {
-    const nombre = String(etiqueta || '').trim();
-    const contenido = String(valor ?? '').trim() || '—';
-    if (!nombre) return;
+      if (original instanceof HTMLTextAreaElement && clone instanceof HTMLTextAreaElement) {
+        clone.value = original.value;
+        clone.textContent = original.value;
+        return;
+      }
 
-    const clave = `${nombre.toUpperCase()}|${contenido.toUpperCase()}`;
-    if (claves.has(clave)) return;
-    claves.add(clave);
+      if (original instanceof HTMLInputElement && clone instanceof HTMLInputElement) {
+        if (original.type === 'checkbox' || original.type === 'radio') {
+          clone.checked = original.checked;
+          if (original.checked) clone.setAttribute('checked', 'checked');
+          else clone.removeAttribute('checked');
+          return;
+        }
 
-    const card = document.createElement('div');
-    const label = document.createElement('span');
-    const strong = document.createElement('strong');
-    label.textContent = nombre;
-    strong.textContent = contenido;
-    card.append(label, strong);
-    container.appendChild(card);
+        clone.value = original.value;
+        clone.setAttribute('value', original.value);
+      }
+    });
   }
 
   function controlarBotonFinal(enFinal) {
     const next = document.getElementById('wizardNext');
-    if (next) {
-      next.hidden = Boolean(enFinal);
-      next.disabled = false;
-    }
-
+    if (next) next.hidden = false;
     const validar = document.getElementById('btnValidate');
     if (!validar) return;
     const estatus = String(document.body.dataset.solicitudEstatus || document.querySelector('.status-pill')?.textContent || '').trim().toUpperCase();
@@ -508,7 +402,6 @@
 
   window.solicitudVentaWizard = {
     irAlInicio: () => mostrarPagina(0),
-    mostrarPagina: (indice = 0, scroll = false) => mostrarPagina(indice, scroll),
     mostrarResumen: () => {
       const paginas = paginasDisponibles();
       if (validarFormularioCompleto(paginas)) mostrarResumen(paginas);

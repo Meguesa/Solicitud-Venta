@@ -25,43 +25,6 @@
     return true;
   }
 
-  function prepararArchivosParaResumen() {
-    const reemplazos = [];
-
-    document.querySelectorAll('#documentosSection input[type="file"]').forEach((input) => {
-      if (!(input instanceof HTMLInputElement) || !input.files?.length) return;
-
-      // El wizard clona los controles para construir el resumen. Los navegadores
-      // no permiten asignar por JavaScript un valor no vacio a un input file;
-      // copiar C:\\fakepath\\... provoca InvalidStateError y detiene el resumen.
-      // Sustituimos el control solo durante el evento por un clon vacio y luego
-      // restauramos el nodo original, conservando intacto su FileList y listeners.
-      const proxy = input.cloneNode(true);
-      proxy.value = '';
-      input.replaceWith(proxy);
-      reemplazos.push({ input, proxy });
-    });
-
-    if (!reemplazos.length) return;
-
-    setTimeout(() => {
-      reemplazos.forEach(({ input, proxy }) => {
-        if (proxy.isConnected) proxy.replaceWith(input);
-      });
-      corregirControlesResumen();
-    }, 0);
-  }
-
-  function corregirControlesResumen() {
-    const summary = document.getElementById('wizardSummary');
-    if (!summary || summary.hidden) return;
-
-    // En el resumen ya no debe permanecer visible el boton que vuelve a ejecutar
-    // "Revisar solicitud". La accion final corresponde al boton de Validar/Enviar.
-    const next = document.getElementById('wizardNext');
-    if (next) next.hidden = true;
-  }
-
   function iniciar() {
     if (!normalizarDocumentacion()) {
       setTimeout(iniciar, 80);
@@ -70,26 +33,16 @@
 
     const form = document.getElementById('solicitudForm');
     if (form && !observer) {
-      observer = new MutationObserver(() => {
-        normalizarDocumentacion();
-        corregirControlesResumen();
-      });
-      observer.observe(form, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['required', 'hidden']
-      });
+      observer = new MutationObserver(() => normalizarDocumentacion());
+      observer.observe(form, { childList: true, subtree: true, attributes: true, attributeFilter: ['required'] });
     }
 
     // El wizard valida al hacer clic. Ejecutamos antes, en fase de captura,
-    // para garantizar que Documentacion llegue limpia a esa validacion y que
-    // los inputs file no interrumpan la construccion del resumen.
+    // para garantizar que Documentacion llegue limpia a esa validacion.
     document.addEventListener('click', (event) => {
-      if (!(event.target instanceof Element) || !event.target.closest('#wizardNext')) return;
-      normalizarDocumentacion();
-      prepararArchivosParaResumen();
-      setTimeout(corregirControlesResumen, 0);
+      if (event.target instanceof Element && event.target.closest('#wizardNext')) {
+        normalizarDocumentacion();
+      }
     }, true);
   }
 
