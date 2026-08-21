@@ -323,105 +323,164 @@
   }
 
   function mostrarResumen(paginas) {
-    enResumen = true;
-    document.querySelectorAll('#solicitudForm > section.form-section').forEach((section) => section.classList.add('wizard-page-hidden'));
-    construirResumen(paginas);
-    summary.hidden = false;
-
-    const total = paginas.length + 1;
-    const label = document.getElementById('wizardStepLabel');
-    const title = document.getElementById('wizardStepTitle');
-    const bar = document.getElementById('wizardProgressBar');
-    const back = document.getElementById('wizardBack');
     const next = document.getElementById('wizardNext');
-    const hint = document.getElementById('wizardNavHint');
+    if (next) next.disabled = true;
 
-    if (label) label.textContent = `Paso ${total} de ${total}`;
-    if (title) title.textContent = 'Resumen de la solicitud';
-    if (bar) bar.style.width = '100%';
-    if (back) back.disabled = false;
-    if (next) next.hidden = true;
-    if (hint) hint.textContent = 'Revisa toda la información. Si todo es correcto, utiliza las acciones inferiores para guardar o enviar.';
-    controlarBotonFinal(true);
-    header?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
+    try {
+      construirResumenLigero(paginas);
+      enResumen = true;
+      document.querySelectorAll('#solicitudForm > section.form-section').forEach((section) => section.classList.add('wizard-page-hidden'));
+      summary.hidden = false;
 
-  function construirResumen(paginas) {
-    summary.innerHTML = `
-      <div class="wizard-summary-heading">
-        <span>Resumen final</span>
-        <h3>Revisa toda la solicitud</h3>
-        <p>Esta vista reúne las secciones capturadas antes de guardar o enviar la solicitud.</p>
-      </div>`;
+      const total = paginas.length + 1;
+      const label = document.getElementById('wizardStepLabel');
+      const title = document.getElementById('wizardStepTitle');
+      const bar = document.getElementById('wizardProgressBar');
+      const back = document.getElementById('wizardBack');
+      const hint = document.getElementById('wizardNavHint');
 
-    paginas.forEach((section) => {
-      const clone = section.cloneNode(true);
-      copiarEstadoFormulario(section, clone);
-
-      clone.removeAttribute('id');
-      clone.classList.remove('wizard-page-hidden', 'wizard-page-active');
-      clone.classList.add('wizard-summary-section');
-      clone.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
-      clone.querySelectorAll('button').forEach((button) => button.remove());
-      clone.querySelectorAll('input[type="file"]').forEach((input) => input.remove());
-      clone.querySelectorAll('input, select, textarea').forEach((control) => {
-        control.disabled = true;
-        control.removeAttribute('required');
-        control.removeAttribute('name');
-      });
-      clone.querySelectorAll('canvas').forEach((canvas) => {
-        const firma = document.createElement('div');
-        firma.className = 'wizard-signature-summary';
-        firma.textContent = 'Firma registrada / consultar expediente';
-        canvas.replaceWith(firma);
-      });
-      summary.appendChild(clone);
-    });
-  }
-
-  function copiarEstadoFormulario(originalSection, clonedSection) {
-    const originales = Array.from(originalSection.querySelectorAll('input, select, textarea'));
-    const clonados = Array.from(clonedSection.querySelectorAll('input, select, textarea'));
-
-    originales.forEach((original, index) => {
-      const clone = clonados[index];
-      if (!clone) return;
-
-      if (original instanceof HTMLInputElement && original.type === 'file') {
-        return;
+      if (label) label.textContent = `Paso ${total} de ${total}`;
+      if (title) title.textContent = 'Resumen de la solicitud';
+      if (bar) bar.style.width = '100%';
+      if (back) back.disabled = false;
+      if (next) next.hidden = true;
+      if (hint) hint.textContent = 'Revisa toda la información. Si todo es correcto, utiliza las acciones inferiores para guardar o enviar.';
+      controlarBotonFinal(true);
+      header?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (error) {
+      console.error('No fue posible construir el resumen de la solicitud:', error);
+      enResumen = false;
+      if (next) {
+        next.hidden = false;
+        next.disabled = false;
       }
+      mostrarMensaje(`No fue posible mostrar el resumen: ${error.message || error}`, 'error');
+    }
+  }
 
-      if (original instanceof HTMLSelectElement && clone instanceof HTMLSelectElement) {
-        Array.from(clone.options).forEach((option, optionIndex) => {
-          option.selected = Boolean(original.options[optionIndex]?.selected);
+  function construirResumenLigero(paginas) {
+    if (!summary) throw new Error('No fue posible localizar el contenedor del resumen.');
+
+    const fragment = document.createDocumentFragment();
+    const heading = document.createElement('div');
+    heading.className = 'wizard-summary-heading';
+    heading.innerHTML = '<span>Resumen final</span><h3>Revisa toda la solicitud</h3><p>Esta vista reúne las secciones capturadas antes de guardar o enviar la solicitud.</p>';
+    fragment.appendChild(heading);
+
+    paginas.forEach((section, sectionIndex) => {
+      const bloque = document.createElement('section');
+      bloque.className = 'form-section wizard-summary-section';
+
+      const encabezado = document.createElement('div');
+      encabezado.className = 'section-title';
+      const circulo = document.createElement('span');
+      circulo.textContent = String(sectionIndex + 1);
+      const copia = document.createElement('div');
+      const titulo = document.createElement('h3');
+      titulo.textContent = nombreSeccion(section) || `Sección ${sectionIndex + 1}`;
+      copia.appendChild(titulo);
+      encabezado.append(circulo, copia);
+      bloque.appendChild(encabezado);
+
+      const valores = document.createElement('div');
+      valores.className = 'component-summary';
+      const claves = new Set();
+
+      section.querySelectorAll('input, select, textarea').forEach((control) => {
+        if (!(control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement)) return;
+        if (control.closest('[hidden]')) return;
+        if (control instanceof HTMLInputElement && ['file', 'button', 'submit', 'reset', 'hidden'].includes(control.type)) return;
+
+        const etiqueta = etiquetaControl(control);
+        if (!etiqueta) return;
+        const valor = valorControl(control);
+        agregarValorResumen(valores, claves, etiqueta, valor);
+      });
+
+      section.querySelectorAll('.component-summary > div').forEach((card) => {
+        const etiqueta = card.querySelector('span')?.textContent?.trim() || '';
+        const valor = card.querySelector('strong')?.textContent?.trim() || '';
+        if (etiqueta) agregarValorResumen(valores, claves, etiqueta, valor);
+      });
+
+      if (section.id === 'documentosSection') {
+        section.querySelectorAll('.upload-card').forEach((card) => {
+          const etiqueta = card.querySelector('strong')?.textContent?.trim() || 'Documento';
+          const estado = card.querySelector('.file-status')?.textContent?.trim() || '';
+          agregarValorResumen(valores, claves, etiqueta, estado || 'Sin archivo seleccionado');
         });
-        clone.value = original.value;
-        return;
       }
 
-      if (original instanceof HTMLTextAreaElement && clone instanceof HTMLTextAreaElement) {
-        clone.value = original.value;
-        clone.textContent = original.value;
-        return;
+      if (section.id === 'firmasSection') {
+        section.querySelectorAll('[data-signature-type]').forEach((card) => {
+          const etiqueta = card.querySelector('.signature-header strong')?.textContent?.trim() || 'Firma';
+          const estado = card.querySelector('[data-signature-status]')?.textContent?.trim() || 'Firma registrada / consultar expediente';
+          agregarValorResumen(valores, claves, etiqueta, estado);
+        });
       }
 
-      if (original instanceof HTMLInputElement && clone instanceof HTMLInputElement) {
-        if (original.type === 'checkbox' || original.type === 'radio') {
-          clone.checked = original.checked;
-          if (original.checked) clone.setAttribute('checked', 'checked');
-          else clone.removeAttribute('checked');
-          return;
-        }
-
-        clone.value = original.value;
-        clone.setAttribute('value', original.value);
+      if (!valores.children.length) {
+        agregarValorResumen(valores, claves, 'Información', 'Sin datos adicionales para mostrar.');
       }
+
+      bloque.appendChild(valores);
+      fragment.appendChild(bloque);
     });
+
+    summary.replaceChildren(fragment);
+  }
+
+  function etiquetaControl(control) {
+    const label = control.closest('label');
+    if (label) {
+      const textoDirecto = Array.from(label.childNodes)
+        .filter((node) => node.nodeType === Node.TEXT_NODE)
+        .map((node) => String(node.textContent || '').trim())
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      if (textoDirecto) return textoDirecto;
+    }
+
+    return String(control.getAttribute('aria-label') || control.id || '')
+      .replace(/[_-]+/g, ' ')
+      .trim();
+  }
+
+  function valorControl(control) {
+    if (control instanceof HTMLInputElement && (control.type === 'checkbox' || control.type === 'radio')) {
+      return control.checked ? 'Sí' : 'No';
+    }
+    if (control instanceof HTMLSelectElement) {
+      return control.selectedOptions[0]?.textContent?.trim() || control.value || '—';
+    }
+    return String(control.value ?? '').trim() || '—';
+  }
+
+  function agregarValorResumen(container, claves, etiqueta, valor) {
+    const nombre = String(etiqueta || '').trim();
+    const contenido = String(valor ?? '').trim() || '—';
+    if (!nombre) return;
+
+    const clave = `${nombre.toUpperCase()}|${contenido.toUpperCase()}`;
+    if (claves.has(clave)) return;
+    claves.add(clave);
+
+    const card = document.createElement('div');
+    const label = document.createElement('span');
+    const strong = document.createElement('strong');
+    label.textContent = nombre;
+    strong.textContent = contenido;
+    card.append(label, strong);
+    container.appendChild(card);
   }
 
   function controlarBotonFinal(enFinal) {
     const next = document.getElementById('wizardNext');
-    if (next) next.hidden = Boolean(enFinal);
+    if (next) {
+      next.hidden = Boolean(enFinal);
+      next.disabled = false;
+    }
 
     const validar = document.getElementById('btnValidate');
     if (!validar) return;
