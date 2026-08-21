@@ -20,7 +20,7 @@
     asegurarPuenteExpediente();
     sembrarFolioDesdeQuery();
     capturarUrlActual();
-    setTimeout(consultar, 900);
+    setTimeout(consultar, 100);
     timer = setInterval(consultar, 5000);
     window.addEventListener("focus", consultar);
     document.addEventListener("visibilitychange", () => {
@@ -135,8 +135,6 @@
     const cambio = ultimoEstatus !== estatus;
     ultimoEstatus = estatus;
 
-    // BORRADOR permanece editable. El seguimiento solo debe bloquear una
-    // solicitud cuando ya salió formalmente de la captura del vendedor.
     if (estatus === "BORRADOR") {
       restaurarBorradorSiFueBloqueado();
       return;
@@ -204,8 +202,6 @@
     const firmaVendedor = Boolean(expedienteFirmas.FIRMA_VENDEDOR)
       || String(data?.firmaVendedor || "").trim().toUpperCase() === "FIRMADO";
 
-    // Solo promovemos estados positivos. Nunca reemplazamos una firma local
-    // recién dibujada por un false remoto durante el polling.
     if (firmaCliente) firmasPersistidas.FIRMA_CLIENTE = true;
     if (firmaVendedor) firmasPersistidas.FIRMA_VENDEDOR = true;
 
@@ -235,10 +231,11 @@
   function restaurarBorradorSiFueBloqueado() {
     const validar = document.getElementById("btnValidate");
     const textoActual = validar?.textContent?.trim().toUpperCase() || "";
-    const bloqueadoPorMonitor = document.body.dataset.solicitudEstatus === "BORRADOR" || textoActual === "BORRADOR";
+    const bloqueadoPorMonitor = Boolean(document.body.dataset.solicitudEstatus) || textoActual === "BORRADOR";
     if (!bloqueadoPorMonitor) return;
 
     delete document.body.dataset.solicitudEstatus;
+    bloquearControlesEdicion(false);
 
     const pill = document.querySelector(".status-pill");
     if (pill) pill.textContent = "BORRADOR";
@@ -263,6 +260,8 @@
     const pill = document.querySelector(".status-pill");
     if (pill) pill.textContent = estatus;
 
+    bloquearControlesEdicion(true);
+
     const guardar = document.getElementById("btnSaveDraft");
     if (guardar) guardar.disabled = true;
 
@@ -273,6 +272,32 @@
     }
 
     document.body.dataset.solicitudEstatus = estatus;
+  }
+
+  function bloquearControlesEdicion(bloqueado) {
+    const form = document.getElementById("solicitudForm");
+    form?.querySelectorAll("input, select, textarea").forEach((control) => {
+      if (control.id === "vendedorNombre" || control.id === "vendedorCorreo") {
+        control.disabled = true;
+        return;
+      }
+      control.disabled = bloqueado;
+    });
+
+    const botonAgregar = document.getElementById("btnAgregarComponente");
+    if (botonAgregar) botonAgregar.disabled = bloqueado;
+
+    document.querySelectorAll(".component-remove").forEach((button) => {
+      button.disabled = bloqueado;
+    });
+
+    document.querySelectorAll('[data-signature-type] button').forEach((button) => {
+      button.disabled = bloqueado;
+    });
+
+    document.querySelectorAll("input[type='file']").forEach((input) => {
+      input.disabled = bloqueado;
+    });
   }
 
   function sembrarFolioDesdeQuery() {
