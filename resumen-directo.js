@@ -1,5 +1,59 @@
 (() => {
   const params = new URLSearchParams(window.location.search);
+
+  // Guardia general del wizard: en algunos ciclos de restauracion/observacion la
+  // seccion Firmas puede conservar la clase wizard-page-hidden aun cuando el
+  // encabezado del wizard ya indica que estamos en ese paso. La mantenemos
+  // sincronizada sin alterar los datos ni las firmas capturadas.
+  instalarGuardiaFirmas();
+
+  function instalarGuardiaFirmas() {
+    let intentos = 0;
+
+    const asegurar = () => {
+      const section = document.getElementById('firmasSection');
+      const title = document.getElementById('wizardStepTitle');
+      const nombre = String(title?.textContent || '').trim().toUpperCase();
+
+      if (!section || !title) {
+        intentos += 1;
+        if (intentos < 80) setTimeout(asegurar, 100);
+        return;
+      }
+
+      if (nombre === 'FIRMAS') {
+        section.hidden = false;
+        section.classList.remove('wizard-page-hidden');
+        section.classList.add('wizard-page-active');
+      }
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => setTimeout(asegurar, 0));
+    } else {
+      setTimeout(asegurar, 0);
+    }
+
+    document.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.closest('#wizardNext, #wizardBack')) return;
+      setTimeout(asegurar, 0);
+      setTimeout(asegurar, 80);
+    }, true);
+
+    const observarTitulo = () => {
+      const title = document.getElementById('wizardStepTitle');
+      if (!title) {
+        setTimeout(observarTitulo, 100);
+        return;
+      }
+      const observer = new MutationObserver(() => setTimeout(asegurar, 0));
+      observer.observe(title, { childList: true, characterData: true, subtree: true });
+      asegurar();
+    };
+    observarTitulo();
+  }
+
   if (params.get('resumen') !== '1') return;
 
   const PRIVATE_ENDPOINT = '/api/solicitud-venta/estado-solicitud.php';
