@@ -27,30 +27,31 @@ document.addEventListener("DOMContentLoaded", () => {
     tipoOperacion?.addEventListener("change", () => setTimeout(asegurarSustitutoUniversal, 0));
   }, 0);
 
-  // El workflow del Portal inserta estos scripts directamente. Los cargamos aqui
-  // solo como respaldo cuando se abre el repositorio Solicitud-Venta por separado.
-  if (!document.querySelector('script[src$="componentes.js"]')) {
+  // El workflow del Portal inserta estos scripts directamente con parametro ?v=.
+  // Buscamos por el nombre dentro de src para reconocer tambien esas URLs y evitar
+  // cargar una segunda copia del mismo modulo.
+  if (!document.querySelector('script[src*="componentes.js"]')) {
     const componentes = document.createElement("script");
     componentes.src = "componentes.js";
     componentes.defer = true;
     document.body.appendChild(componentes);
   }
 
-  if (!document.querySelector('script[src$="componentes-sync.js"]')) {
+  if (!document.querySelector('script[src*="componentes-sync.js"]')) {
     const sync = document.createElement("script");
     sync.src = "componentes-sync.js";
     sync.defer = true;
     document.body.appendChild(sync);
   }
 
-  if (!document.querySelector('script[src$="extras.js"]')) {
+  if (!document.querySelector('script[src*="extras.js"]')) {
     const extras = document.createElement("script");
     extras.src = "extras.js";
     extras.defer = true;
     document.body.appendChild(extras);
   }
 
-  if (!document.querySelector('script[src$="persistencia.js"]')) {
+  if (!document.querySelector('script[src*="persistencia.js"]')) {
     const persistencia = document.createElement("script");
     persistencia.src = "persistencia.js";
     persistencia.defer = true;
