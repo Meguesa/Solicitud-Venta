@@ -188,6 +188,11 @@ function configurarDatosServicioPorComponente() {
     "OTRO": "ATOTRO"
   };
 
+  const CODIGOS_CREMACION_DIRECTA = {
+    "PREVISION": "OPATMET",
+    "USO INMEDIATO": "URNABAS"
+  };
+
   const iniciar = () => {
     const container = document.getElementById("componentesContainer");
     if (!container || typeof window.solicitudVentaComponentesObtener !== "function") {
@@ -200,18 +205,24 @@ function configurarDatosServicioPorComponente() {
       if (!card || card.dataset.servicioNumeroConfigurado === "1") return;
       const serviceFields = card.querySelector(".component-service-fields");
       const tipo = card.querySelector(".component-type");
+      const operacion = card.querySelector(".component-operation");
       const servicioTipo = card.querySelector(".component-service-type");
       const ataud = card.querySelector(".component-service-ataud");
       const urna = card.querySelector(".component-service-urna");
-      if (!serviceFields || !tipo || !servicioTipo || !ataud || !urna) return;
+      if (!serviceFields || !tipo || !operacion || !servicioTipo || !ataud || !urna) return;
 
-      const existeNoAplica = Array.from(urna.options).some((option) => option.value === "NO APLICA");
-      if (!existeNoAplica) {
-        const option = document.createElement("option");
-        option.value = "NO APLICA";
-        option.textContent = "No Aplica";
-        urna.appendChild(option);
-      }
+      const asegurarOpcionNoAplica = (select) => {
+        const existeNoAplica = Array.from(select.options).some((option) => option.value === "NO APLICA");
+        if (!existeNoAplica) {
+          const option = document.createElement("option");
+          option.value = "NO APLICA";
+          option.textContent = "No Aplica";
+          select.appendChild(option);
+        }
+      };
+
+      asegurarOpcionNoAplica(urna);
+      asegurarOpcionNoAplica(ataud);
 
       const numeroLabel = document.createElement("label");
       numeroLabel.innerHTML = 'Número<input class="component-service-numero" type="text" inputmode="numeric" autocomplete="off">';
@@ -226,6 +237,21 @@ function configurarDatosServicioPorComponente() {
       const numero = card.querySelector(".component-service-numero");
       const clave = card.querySelector(".component-service-clave");
 
+      const esCremacionDirecta = () => String(servicioTipo.value || "").trim().toUpperCase() === "CREMACION DIRECTA";
+
+      const actualizarAtaud = () => {
+        const esServicio = tipo.value === "SERVICIO";
+        if (esServicio && esCremacionDirecta()) {
+          ataud.value = "NO APLICA";
+          ataud.disabled = true;
+          ataud.required = false;
+        } else {
+          ataud.disabled = !esServicio;
+          ataud.required = esServicio;
+          if (ataud.value === "NO APLICA") ataud.value = "";
+        }
+      };
+
       const actualizarUrna = () => {
         const esInhumacion = String(servicioTipo.value || "").toUpperCase().includes("INHUMACION");
         if (esInhumacion) {
@@ -238,11 +264,15 @@ function configurarDatosServicioPorComponente() {
       };
 
       const actualizarClave = () => {
-        const codigoServicio = CODIGOS_SERVICIO[String(servicioTipo.value || "").toUpperCase()] || "";
-        const codigoAtaud = CODIGOS_ATAUD[String(ataud.value || "").toUpperCase()] || "";
+        const servicio = String(servicioTipo.value || "").trim().toUpperCase();
+        const tipoOperacion = String(operacion.value || "").trim().toUpperCase();
+        const codigoServicio = CODIGOS_SERVICIO[servicio] || "";
+        const codigoComplemento = servicio === "CREMACION DIRECTA"
+          ? (CODIGOS_CREMACION_DIRECTA[tipoOperacion] || "")
+          : (CODIGOS_ATAUD[String(ataud.value || "").trim().toUpperCase()] || "");
         const valorNumero = String(numero?.value || "").trim().toUpperCase();
-        if (clave) clave.value = codigoServicio && codigoAtaud && valorNumero
-          ? `${codigoServicio}-${codigoAtaud}-${valorNumero}`
+        if (clave) clave.value = codigoServicio && codigoComplemento && valorNumero
+          ? `${codigoServicio}-${codigoComplemento}-${valorNumero}`
           : "";
       };
 
@@ -253,16 +283,24 @@ function configurarDatosServicioPorComponente() {
         if (!esServicio) {
           if (numero) numero.value = "";
           if (clave) clave.value = "";
+          ataud.disabled = true;
+          ataud.required = false;
           urna.disabled = false;
         }
+        actualizarAtaud();
       };
 
       numero?.addEventListener("input", actualizarClave);
       servicioTipo.addEventListener("change", () => {
+        actualizarAtaud();
         actualizarUrna();
         actualizarClave();
       });
       ataud.addEventListener("change", actualizarClave);
+      operacion.addEventListener("change", () => {
+        actualizarAtaud();
+        actualizarClave();
+      });
       tipo.addEventListener("change", () => {
         actualizarRequired();
         actualizarUrna();
