@@ -87,6 +87,6 @@ $voboRole = portal_vobo_role();
     </section>
   </main>
 
-  <script src="./inicio.js?v=20260820-3"></script>
+  <script src="./inicio.js?v=20260820-4"></script>
 </body>
 </html>
