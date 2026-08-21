@@ -4,6 +4,8 @@
   let contexto = null;
   let consultando = false;
   let reenviando = false;
+  let restaurandoComponentes = false;
+  let componentesContextoAplicados = false;
 
   function esCorreccion() {
     return new URLSearchParams(window.location.search).get("correccion") === "1";
@@ -16,6 +18,10 @@
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/\s+/g, " ");
+  }
+
+  function esperar(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
   }
 
   function obtenerFolio() {
@@ -39,6 +45,13 @@
     if (!mensaje) return;
     mensaje.textContent = texto;
     mensaje.className = `form-message ${tipo}`.trim();
+  }
+
+  function asegurarFolioVisible() {
+    const folio = String(contexto?.folio || obtenerFolio() || "").trim().toUpperCase();
+    if (!/^SV-\d{4}-\d+$/.test(folio)) return;
+    const strong = document.querySelector(".folio-box strong");
+    if (strong && strong.textContent?.trim().toUpperCase() !== folio) strong.textContent = folio;
   }
 
   function asegurarBotonRegresarInicio() {
@@ -296,6 +309,169 @@
     select.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
+  async function esperarRestauracionInicial() {
+    for (let intento = 0; intento < 35; intento += 1) {
+      const texto = String(document.getElementById("formMessage")?.textContent || "");
+      if (/borrador\s+SV-\d{4}-\d+\s+recuperado/i.test(texto)) return;
+      await esperar(100);
+    }
+  }
+
+  function asignarSelect(select, valor, dispararCambio = true) {
+    if (!(select instanceof HTMLSelectElement)) return false;
+    const texto = String(valor || "").trim();
+    if (!texto) {
+      select.value = "";
+      if (dispararCambio) {
+        select.dispatchEvent(new Event("input", { bubbles: true }));
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      return true;
+    }
+
+    const esperado = normalizar(texto);
+    let option = Array.from(select.options).find((item) =>
+      normalizar(item.value) === esperado || normalizar(item.textContent) === esperado
+    );
+
+    if (!option) {
+      option = document.createElement("option");
+      option.value = texto.toUpperCase();
+      option.textContent = texto;
+      select.appendChild(option);
+    }
+
+    select.value = option.value;
+    if (dispararCambio) {
+      select.dispatchEvent(new Event("input", { bubbles: true }));
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    return true;
+  }
+
+  function asignarInput(control, valor, evento = "input") {
+    if (!(control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement)) return false;
+    control.value = valor == null ? "" : String(valor);
+    control.dispatchEvent(new Event(evento, { bubbles: true }));
+    return true;
+  }
+
+  async function asegurarCantidadCards(cantidad) {
+    const container = document.getElementById("componentesContainer");
+    const agregar = document.getElementById("btnAgregarComponente");
+    if (!(container instanceof HTMLElement) || !(agregar instanceof HTMLButtonElement)) return [];
+
+    let cards = Array.from(container.querySelectorAll(".component-card"));
+    while (cards.length < cantidad) {
+      agregar.click();
+      await esperar(30);
+      cards = Array.from(container.querySelectorAll(".component-card"));
+    }
+    while (cards.length > cantidad && cards.length > 1) {
+      const eliminar = cards[cards.length - 1]?.querySelector(".component-remove");
+      if (eliminar instanceof HTMLButtonElement) eliminar.click();
+      await esperar(30);
+      cards = Array.from(container.querySelectorAll(".component-card"));
+    }
+    return cards;
+  }
+
+  async function restaurarComponentesContexto() {
+    if (componentesContextoAplicados || restaurandoComponentes || !esCorreccion()) return;
+    const datos = Array.isArray(contexto?.componentesDetalle) ? contexto.componentesDetalle.slice() : [];
+    if (!datos.length) return;
+
+    restaurandoComponentes = true;
+    try {
+      // persistencia.js restaura primero el JSON historico. Esperamos a que termine
+      // y despues aplicamos la copia autoritativa de los componentes de SharePoint.
+      await esperarRestauracionInicial();
+
+      datos.sort((a, b) => Number(a?.componenteNumero || 0) - Number(b?.componenteNumero || 0));
+      let cards = await asegurarCantidadCards(datos.length);
+      if (cards.length !== datos.length) throw new Error("No fue posible preparar todos los componentes de la solicitud.");
+
+      const distribucion = document.getElementById("distribucionTipoUI");
+      if (distribucion instanceof HTMLSelectElement) {
+        asignarSelect(distribucion, contexto?.distribucionTipo || "AUTOMATICA", true);
+      }
+      const promocion = document.getElementById("promocionNombreUI");
+      if (promocion instanceof HTMLInputElement) promocion.value = String(contexto?.promocionNombre || "");
+
+      // Primero restauramos tipo y operacion. Esos cambios construyen los campos
+      // dinamicos de servicio/propiedad y el catalogo de sucursal.
+      datos.forEach((item, index) => {
+        const card = cards[index];
+        if (!card) return;
+        asignarSelect(card.querySelector(".component-type"), item?.tipoSolicitud || "", true);
+        asignarSelect(card.querySelector(".component-operation"), item?.tipoOperacion || "PREVISION", true);
+      });
+
+      await esperar(120);
+      cards = Array.from(document.querySelectorAll("#componentesContainer .component-card"));
+
+      datos.forEach((item, index) => {
+        const card = cards[index];
+        if (!card) return;
+
+        asignarSelect(card.querySelector(".component-sucursal"), item?.sucursal || "", true);
+        asignarSelect(card.querySelector(".component-service-type"), item?.servicioTipo || "", true);
+        asignarSelect(card.querySelector(".component-service-ataud"), item?.servicioAtaud || "", true);
+        asignarSelect(card.querySelector(".component-service-urna"), item?.servicioUrna || "", true);
+        asignarSelect(card.querySelector(".component-service-duracion"), item?.servicioDuracion || "", true);
+
+        asignarSelect(card.querySelector(".component-property-type"), item?.propiedadTipo || "", true);
+        const seccionSelect = card.querySelector(".component-property-seccion-select");
+        const seccionInput = card.querySelector(".component-property-seccion-input");
+        if (seccionSelect instanceof HTMLSelectElement && !seccionSelect.hidden) {
+          asignarSelect(seccionSelect, item?.propiedadSeccion || "", true);
+        }
+        if (seccionInput instanceof HTMLInputElement && !seccionInput.hidden) {
+          asignarInput(seccionInput, item?.propiedadSeccion || "", "input");
+        }
+
+        asignarInput(card.querySelector(".component-property-manzana"), item?.propiedadManzana || "", "input");
+        asignarInput(card.querySelector(".component-property-numero"), item?.propiedadNumero || "", "input");
+        asignarInput(card.querySelector(".component-base"), Number(item?.precioBaseComponente || 0), "input");
+      });
+
+      // El campo Numero de servicio lo agrega otro modulo despues de conocer el
+      // tipo de servicio. Esperamos a que aparezca antes de restaurarlo.
+      for (let intento = 0; intento < 20; intento += 1) {
+        const actuales = Array.from(document.querySelectorAll("#componentesContainer .component-card"));
+        const faltan = datos.some((item, index) =>
+          normalizar(item?.tipoSolicitud) === "SERVICIO"
+          && String(item?.servicioNumero || "").trim() !== ""
+          && !(actuales[index]?.querySelector(".component-service-numero") instanceof HTMLInputElement)
+        );
+        if (!faltan) break;
+        await esperar(80);
+      }
+
+      cards = Array.from(document.querySelectorAll("#componentesContainer .component-card"));
+      datos.forEach((item, index) => {
+        const card = cards[index];
+        if (!card) return;
+        asignarInput(card.querySelector(".component-service-numero"), item?.servicioNumero || "", "input");
+
+        if (normalizar(contexto?.distribucionTipo) === "MANUAL_PROMOCION") {
+          asignarInput(card.querySelector(".component-amount"), Number(item?.montoComponente || 0), "input");
+        }
+      });
+
+      if (typeof window.solicitudVentaComponentesRecalcular === "function") {
+        window.solicitudVentaComponentesRecalcular();
+      }
+
+      componentesContextoAplicados = true;
+      asegurarFolioVisible();
+    } catch (error) {
+      console.warn("No fue posible restaurar todos los componentes desde SharePoint:", error);
+    } finally {
+      restaurandoComponentes = false;
+    }
+  }
+
   function asegurarPaginaFirmas() {
     if (!esCorreccion()) return;
     const tituloPaso = normalizar(document.getElementById("wizardStepTitle")?.textContent || "");
@@ -350,8 +526,10 @@
       }
 
       contexto = data;
+      asegurarFolioVisible();
       restaurarLugar();
       aplicarFirmasPersistidas();
+      void restaurarComponentesContexto();
     } catch (error) {
       console.warn("No fue posible completar el contexto de correccion:", error);
     } finally {
@@ -370,10 +548,12 @@
     const timer = window.setInterval(() => {
       ciclos += 1;
       asegurarBotonRegresarInicio();
+      asegurarFolioVisible();
       asegurarCatalogoLugar();
       restaurarLugar();
       asegurarPaginaFirmas();
       aplicarFirmasPersistidas();
+      if (!componentesContextoAplicados && !restaurandoComponentes) void restaurarComponentesContexto();
       if (ciclos >= 80) window.clearInterval(timer);
     }, 250);
 
@@ -389,6 +569,14 @@
           event.stopImmediatePropagation();
           void cargarContexto();
           mostrarMensaje("Verificando las firmas ya registradas antes de validar la corrección...");
+          return;
+        }
+
+        if (!componentesContextoAplicados && Array.isArray(contexto?.componentesDetalle) && contexto.componentesDetalle.length) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          void restaurarComponentesContexto();
+          mostrarMensaje("Terminando de restaurar los componentes originales antes de validar la corrección...");
           return;
         }
 
@@ -413,9 +601,11 @@
     }, true);
 
     window.addEventListener("focus", () => {
+      asegurarFolioVisible();
       restaurarLugar();
       asegurarPaginaFirmas();
       aplicarFirmasPersistidas();
+      if (!componentesContextoAplicados && !restaurandoComponentes) void restaurarComponentesContexto();
     });
   }
 
