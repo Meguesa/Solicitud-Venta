@@ -18,7 +18,7 @@ $role = htmlspecialchars(portal_vobo_role(), ENT_QUOTES, 'UTF-8');
   <meta name="theme-color" content="#225b8a">
   <title>Vo.Bo. de Solicitudes | Jardines de Juan Pablo</title>
   <link rel="stylesheet" href="/assets/css/account-menu.css">
-  <link rel="stylesheet" href="./vobo.css?v=20260820-3">
+  <link rel="stylesheet" href="./vobo.css?v=20260820-4">
 </head>
 <body>
   <header class="vobo-header">
@@ -49,7 +49,10 @@ $role = htmlspecialchars(portal_vobo_role(), ENT_QUOTES, 'UTF-8');
         <h2>Solicitudes pendientes de revisión</h2>
         <p>Revisa la información capturada por el vendedor y los componentes antes de dar el Vo.Bo.</p>
       </div>
-      <button id="btnRecargar" type="button" class="secondary-button">Actualizar bandeja</button>
+      <div class="intro-actions">
+        <a href="/solicitud-venta/inicio/" class="secondary-link">Regresar a inicio</a>
+        <button id="btnRecargar" type="button" class="secondary-button">Actualizar bandeja</button>
+      </div>
     </section>
 
     <div id="message" class="message" role="status"></div>
