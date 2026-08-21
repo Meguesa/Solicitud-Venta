@@ -9,6 +9,7 @@ $user = portal_user();
 $name = htmlspecialchars((string) ($user['name'] ?? 'Usuario'), ENT_QUOTES, 'UTF-8');
 $email = htmlspecialchars((string) ($user['email'] ?? ''), ENT_QUOTES, 'UTF-8');
 $voboRole = portal_vobo_role();
+$cobranzaVobo = portal_user_can_cobranza_vobo();
 ?>
 <!doctype html>
 <html lang="es-MX">
@@ -47,7 +48,7 @@ $voboRole = portal_vobo_role();
       <div>
         <span class="seller-pill">SOLICITUD DE VENTA</span>
         <h2>Mis solicitudes</h2>
-        <p>Crea una solicitud nueva, consulta su seguimiento o revisa Vo.Bo. cuando tu perfil tenga autorización.</p>
+        <p>Crea una solicitud nueva, consulta su seguimiento o revisa autorizaciones cuando tu perfil tenga acceso.</p>
       </div>
       <button id="btnRecargar" type="button" class="secondary-button">Actualizar</button>
     </section>
@@ -63,12 +64,18 @@ $voboRole = portal_vobo_role();
       </button>
       <button class="menu-card menu-card-filter" type="button" data-view="aprobadas">
         <span class="menu-icon">✓</span>
-        <div><strong>Solicitudes aprobadas</strong><span><b id="countAprobadas">0</b> con Vo.Bo. aprobado.</span></div>
+        <div><strong>Solicitudes aprobadas</strong><span><b id="countAprobadas">0</b> con aprobación final.</span></div>
       </button>
       <?php if ($voboRole !== ''): ?>
-      <a class="menu-card menu-card-vobo" href="/solicitud-venta/vobo/">
+      <a class="menu-card menu-card-vobo" href="/solicitud-venta/vobo/?etapa=comercial">
         <span class="menu-icon">✓</span>
-        <div><strong>Vo.Bo. de solicitudes</strong><span>Revisar solicitudes pendientes como <?= htmlspecialchars($voboRole, ENT_QUOTES, 'UTF-8') ?>.</span></div>
+        <div><strong>Vo.Bo. Comercial</strong><span>Revisar solicitudes pendientes como <?= htmlspecialchars($voboRole, ENT_QUOTES, 'UTF-8') ?>.</span></div>
+      </a>
+      <?php endif; ?>
+      <?php if ($cobranzaVobo): ?>
+      <a class="menu-card menu-card-vobo" href="/solicitud-venta/vobo/?etapa=cobranza">
+        <span class="menu-icon">$</span>
+        <div><strong>Vo.Bo. Cobranza</strong><span>Revisar solicitudes autorizadas por Comercial y pendientes de Cobranza.</span></div>
       </a>
       <?php endif; ?>
     </section>
