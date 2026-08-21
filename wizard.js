@@ -95,10 +95,6 @@
     if (!boton || boton.dataset.wizardSaveDispatch === '1') return;
     boton.dataset.wizardSaveDispatch = '1';
 
-    // app.js enlaza inicialmente el boton a la funcion original. Los modulos de
-    // Componentes y Persistencia reemplazan despues window.guardarBorrador para
-    // ejecutar una cadena completa de guardado. Este listener en fase de captura
-    // evita ejecutar la referencia antigua y llama siempre a la version vigente.
     boton.addEventListener('click', async (event) => {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -163,7 +159,7 @@
 
   function mostrarPagina(indice, scroll = true) {
     enResumen = false;
-    summary.hidden = true;
+    if (summary) summary.hidden = true;
     const paginas = paginasDisponibles();
     if (!paginas.length) return;
     paginaActual = Math.max(0, Math.min(indice, paginas.length - 1));
@@ -202,7 +198,10 @@
     if (title) title.textContent = titulo;
     if (bar) bar.style.width = `${((paginaActual + 1) / total) * 100}%`;
     if (back) back.disabled = paginaActual === 0;
-    if (next) next.textContent = paginaActual === paginas.length - 1 ? 'Revisar solicitud →' : 'Siguiente →';
+    if (next) {
+      next.hidden = false;
+      next.textContent = paginaActual === paginas.length - 1 ? 'Revisar solicitud →' : 'Siguiente →';
+    }
     if (hint) hint.textContent = paginaActual === paginas.length - 1
       ? 'Continúa para revisar el resumen completo antes de enviar.'
       : 'Completa esta sección para continuar.';
@@ -234,6 +233,8 @@
   }
 
   function validarSeccion(section) {
+    if (section?.id === 'firmasSection') return validarFirmas(section);
+
     const controles = controlesValidables(section);
     for (const control of controles) {
       if (!control.checkValidity()) {
@@ -244,6 +245,37 @@
         return false;
       }
     }
+    return true;
+  }
+
+  function validarFirmas(section) {
+    const modalidad = section?.querySelector('#modalidadFirma') || document.getElementById('modalidadFirma');
+    const valorModalidad = String(modalidad?.value || '').trim().toUpperCase();
+    if (!valorModalidad) {
+      modalidad?.focus({ preventScroll: true });
+      modalidad?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      mostrarMensaje('Selecciona la modalidad de firma antes de continuar.', 'error');
+      return false;
+    }
+
+    const expediente = window.solicitudVentaExtras?.capturarEstadoExpediente?.() || {};
+    const firmas = expediente?.firmas && typeof expediente.firmas === 'object' ? expediente.firmas : {};
+    const firmaVendedor = Boolean(firmas.FIRMA_VENDEDOR);
+    const firmaCliente = Boolean(firmas.FIRMA_CLIENTE);
+    const remota = valorModalidad === 'REMOTA';
+
+    if (!firmaVendedor) {
+      document.querySelector('[data-signature-type="FIRMA_VENDEDOR"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      mostrarMensaje('La firma del vendedor es obligatoria antes de revisar la solicitud.', 'error');
+      return false;
+    }
+
+    if (!remota && !firmaCliente) {
+      document.querySelector('[data-signature-type="FIRMA_CLIENTE"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      mostrarMensaje('La firma del cliente es obligatoria antes de revisar la solicitud.', 'error');
+      return false;
+    }
+
     return true;
   }
 
@@ -259,7 +291,16 @@
     }
 
     for (let index = 0; index < paginas.length; index += 1) {
-      const invalid = controlesValidables(paginas[index]).find((control) => !control.checkValidity());
+      const section = paginas[index];
+      if (section?.id === 'firmasSection') {
+        if (!validarFirmas(section)) {
+          mostrarPagina(index);
+          return false;
+        }
+        continue;
+      }
+
+      const invalid = controlesValidables(section).find((control) => !control.checkValidity());
       if (!invalid) continue;
       mostrarPagina(index);
       invalid.reportValidity();
@@ -288,12 +329,19 @@
     summary.hidden = false;
 
     const total = paginas.length + 1;
-    document.getElementById('wizardStepLabel').textContent = `Paso ${total} de ${total}`;
-    document.getElementById('wizardStepTitle').textContent = 'Resumen de la solicitud';
-    document.getElementById('wizardProgressBar').style.width = '100%';
-    document.getElementById('wizardBack').disabled = false;
-    document.getElementById('wizardNext').hidden = true;
-    document.getElementById('wizardNavHint').textContent = 'Revisa toda la información. Si todo es correcto, utiliza las acciones inferiores para guardar o enviar.';
+    const label = document.getElementById('wizardStepLabel');
+    const title = document.getElementById('wizardStepTitle');
+    const bar = document.getElementById('wizardProgressBar');
+    const back = document.getElementById('wizardBack');
+    const next = document.getElementById('wizardNext');
+    const hint = document.getElementById('wizardNavHint');
+
+    if (label) label.textContent = `Paso ${total} de ${total}`;
+    if (title) title.textContent = 'Resumen de la solicitud';
+    if (bar) bar.style.width = '100%';
+    if (back) back.disabled = false;
+    if (next) next.hidden = true;
+    if (hint) hint.textContent = 'Revisa toda la información. Si todo es correcto, utiliza las acciones inferiores para guardar o enviar.';
     controlarBotonFinal(true);
     header?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -308,11 +356,6 @@
 
     paginas.forEach((section) => {
       const clone = section.cloneNode(true);
-
-      // cloneNode copia la estructura/atributos, pero no garantiza copiar el
-      // estado vivo de controles modificados por el usuario. En particular, los
-      // <select> regresaban visualmente a la opcion inicial "Selecciona" en el
-      // resumen aunque el formulario original tuviera una opcion valida elegida.
       copiarEstadoFormulario(section, clone);
 
       clone.removeAttribute('id');
@@ -344,8 +387,11 @@
       const clone = clonados[index];
       if (!clone) return;
 
+      if (original instanceof HTMLInputElement && original.type === 'file') {
+        return;
+      }
+
       if (original instanceof HTMLSelectElement && clone instanceof HTMLSelectElement) {
-        // Copiar selectedness real, no solo el atributo selected del HTML inicial.
         Array.from(clone.options).forEach((option, optionIndex) => {
           option.selected = Boolean(original.options[optionIndex]?.selected);
         });
@@ -375,7 +421,8 @@
 
   function controlarBotonFinal(enFinal) {
     const next = document.getElementById('wizardNext');
-    if (next) next.hidden = false;
+    if (next) next.hidden = Boolean(enFinal);
+
     const validar = document.getElementById('btnValidate');
     if (!validar) return;
     const estatus = String(document.body.dataset.solicitudEstatus || document.querySelector('.status-pill')?.textContent || '').trim().toUpperCase();
@@ -402,6 +449,7 @@
 
   window.solicitudVentaWizard = {
     irAlInicio: () => mostrarPagina(0),
+    mostrarPagina: (indice = 0, scroll = false) => mostrarPagina(indice, scroll),
     mostrarResumen: () => {
       const paginas = paginasDisponibles();
       if (validarFormularioCompleto(paginas)) mostrarResumen(paginas);
