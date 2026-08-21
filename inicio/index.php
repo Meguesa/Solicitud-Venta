@@ -94,6 +94,6 @@ $cobranzaVobo = portal_user_can_cobranza_vobo();
     </section>
   </main>
 
-  <script src="./inicio.js?v=20260820-4"></script>
+  <script src="./inicio.js?v=20260821-5"></script>
 </body>
 </html>
