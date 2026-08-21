@@ -77,11 +77,21 @@
     const voboEstatus = String(item.voboEstatus || '').trim().toUpperCase();
     const estatusBase = String(item.estatus || '').trim().toUpperCase();
     const esCorreccion = voboEstatus === 'CORRECCION' || estatusBase === 'CORRECCION';
+    const esRevisionCompleta = [
+      'PENDIENTE VOBO',
+      'PENDIENTE COBRANZA',
+      'APROBADA'
+    ].includes(estatusBase) || [
+      'PENDIENTE VOBO',
+      'PENDIENTE COBRANZA',
+      'APROBADA'
+    ].includes(voboEstatus);
     const estatusVisible = esCorreccion ? 'CORRECCION' : (item.estatus || '—');
 
     const params = new URLSearchParams({ folio });
     if (/^\d+$/.test(itemId)) params.set('itemId', itemId);
     if (esCorreccion) params.set('correccion', '1');
+    if (esRevisionCompleta) params.set('resumen', '1');
     link.href = `/solicitud-venta/?${params.toString()}`;
 
     link.append(
