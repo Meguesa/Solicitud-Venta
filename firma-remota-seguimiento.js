@@ -20,6 +20,19 @@
     asegurarPuenteExpediente();
     sembrarFolioDesdeQuery();
     capturarUrlActual();
+
+    const reset = document.getElementById("btnReset");
+    if (reset && reset.dataset.nuevaSolicitudResetFix !== "1") {
+      reset.dataset.nuevaSolicitudResetFix = "1";
+      reset.addEventListener("click", () => {
+        const texto = String(reset.textContent || "").trim().toUpperCase();
+        const veniaBloqueada = Boolean(document.body.dataset.solicitudEstatus)
+          || texto.includes("NUEVA SOLICITUD");
+        if (!veniaBloqueada) return;
+        prepararNuevaSolicitud();
+      }, true);
+    }
+
     setTimeout(consultar, 100);
     timer = setInterval(consultar, 5000);
     window.addEventListener("focus", consultar);
@@ -254,6 +267,50 @@
       reset.disabled = false;
       reset.textContent = "Limpiar";
     }
+  }
+
+  function prepararNuevaSolicitud() {
+    ultimoEstatus = "";
+    firmasPersistidas.FIRMA_CLIENTE = false;
+    firmasPersistidas.FIRMA_VENDEDOR = false;
+    delete document.body.dataset.solicitudEstatus;
+    delete document.body.dataset.solicitudEstadoRestaurado;
+
+    bloquearControlesEdicion(false);
+
+    const guardar = document.getElementById("btnSaveDraft");
+    if (guardar) guardar.disabled = false;
+
+    const validar = document.getElementById("btnValidate");
+    if (validar) {
+      validar.disabled = false;
+      validar.textContent = "Validar solicitud";
+    }
+
+    const reset = document.getElementById("btnReset");
+    if (reset) {
+      reset.disabled = false;
+      reset.textContent = "Limpiar";
+    }
+
+    const pill = document.querySelector(".status-pill");
+    if (pill) pill.textContent = "BORRADOR";
+
+    const firmaUrl = document.getElementById("firmaRemotaUrl");
+    if (firmaUrl) firmaUrl.value = "";
+
+    try {
+      const limpia = `${window.location.pathname}`;
+      window.history.replaceState({}, "", limpia);
+    } catch (_) {}
+
+    setTimeout(() => {
+      if (typeof window.actualizarRequiredVisibles === "function") window.actualizarRequiredVisibles();
+      if (typeof window.actualizarInformacionLaboral === "function") window.actualizarInformacionLaboral();
+      if (typeof window.solicitudVentaWizard?.mostrarPagina === "function") {
+        window.solicitudVentaWizard.mostrarPagina(0, false);
+      }
+    }, 0);
   }
 
   function bloquear(textoBoton, estatus) {
