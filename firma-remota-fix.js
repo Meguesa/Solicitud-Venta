@@ -4,9 +4,12 @@
   const GESTIONAR_ENDPOINT = "/api/solicitud-venta/gestionar-firma-remota.php";
   const BORRADOR_ENDPOINT = "/api/solicitud-venta/estado-borrador.php";
   const ESTADO_ENDPOINT = "/api/solicitud-venta/estado-solicitud.php";
+  const CORRECCION_ENDPOINT = "/api/solicitud-venta/reabrir-correccion.php";
   const STORAGE_PREFIX = "solicitudVenta:borradorActivo:v1:";
   let puenteInstalado = false;
   let recuperando = false;
+  let preparandoCorreccion = false;
+  let correccionPreparada = false;
 
   function esRemota() {
     return document.getElementById("modalidadFirma")?.value === "REMOTA";
@@ -98,6 +101,26 @@
       }));
     } catch (error) {
       console.warn("No fue posible conservar el enlace de firma remota:", error);
+    }
+  }
+
+  function marcarReferenciaCorreccion(folio, itemId) {
+    const key = claveStorage();
+    if (!key || !folio) return;
+    try {
+      const raw = localStorage.getItem(key);
+      const actual = raw ? JSON.parse(raw) : {};
+      localStorage.setItem(key, JSON.stringify({
+        ...actual,
+        folio,
+        itemId: itemId || actual?.itemId || obtenerItemId(),
+        firmaUrl: "",
+        estatus: "BORRADOR",
+        voboEstatus: "CORRECCION",
+        actualizado: new Date().toISOString()
+      }));
+    } catch (error) {
+      console.warn("No fue posible actualizar la referencia de correccion:", error);
     }
   }
 
@@ -214,6 +237,105 @@
     }
   }
 
+  function correccionSolicitadaPorQuery() {
+    return new URLSearchParams(location.search).get("correccion") === "1";
+  }
+
+  async function prepararCorreccion() {
+    if (!correccionSolicitadaPorQuery() || preparandoCorreccion || correccionPreparada) return;
+    if (!window.solicitudVentaAuth?.getBackendAccessToken) {
+      setTimeout(prepararCorreccion, 120);
+      return;
+    }
+
+    const folio = obtenerFolio();
+    if (!folio) {
+      setTimeout(prepararCorreccion, 120);
+      return;
+    }
+
+    preparandoCorreccion = true;
+    try {
+      const token = await window.solicitudVentaAuth.getBackendAccessToken();
+      if (!token) throw new Error("No fue posible obtener autorizacion para abrir la correccion.");
+
+      const response = await fetch(CORRECCION_ENDPOINT, {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          folio,
+          itemId: obtenerItemId()
+        })
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.ok) {
+        throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+      }
+
+      correccionPreparada = true;
+      marcarReferenciaCorreccion(folio, String(data?.itemId || obtenerItemId()));
+      habilitarEdicionCorreccion(String(data?.motivo || ""));
+    } catch (error) {
+      console.error("Preparar correccion del vendedor:", error);
+      mostrarMensaje(`No fue posible habilitar la correccion: ${error.message || error}`, "error");
+    } finally {
+      preparandoCorreccion = false;
+    }
+  }
+
+  function habilitarEdicionCorreccion(motivo) {
+    const pill = document.querySelector(".status-pill");
+    if (pill) pill.textContent = "CORRECCION";
+
+    delete document.body.dataset.solicitudEstatus;
+    document.body.dataset.correccionActiva = "1";
+
+    const guardar = document.getElementById("btnSaveDraft");
+    if (guardar) guardar.disabled = false;
+
+    const validar = document.getElementById("btnValidate");
+    if (validar) {
+      validar.disabled = false;
+      validar.textContent = esRemota() ? "Enviar a firma" : "Validar solicitud";
+    }
+
+    const reset = document.getElementById("btnReset");
+    if (reset) reset.disabled = false;
+
+    mostrarAvisoCorreccion(motivo);
+    const detalle = motivo ? ` Motivo: ${motivo}` : "";
+    mostrarMensaje(`Solicitud devuelta a correccion. Atiende los cambios solicitados y vuelve a enviarla.${detalle}`, "ok");
+  }
+
+  function mostrarAvisoCorreccion(motivo) {
+    const form = document.getElementById("solicitudForm");
+    const banner = form?.querySelector(".form-banner");
+    if (!form || !banner) return;
+
+    let aviso = document.getElementById("solicitudCorreccionAviso");
+    if (!aviso) {
+      aviso = document.createElement("div");
+      aviso.id = "solicitudCorreccionAviso";
+      aviso.setAttribute("role", "status");
+      aviso.style.cssText = "margin:14px 0;padding:16px 18px;border:1px solid #e0ad54;border-left:5px solid #b76b00;border-radius:12px;background:#fff8e8;color:#5a3300;line-height:1.45";
+      banner.insertAdjacentElement("afterend", aviso);
+    }
+
+    const texto = String(motivo || "").trim();
+    aviso.innerHTML = "";
+    const titulo = document.createElement("strong");
+    titulo.textContent = "Correccion solicitada por Vo.Bo.";
+    const detalle = document.createElement("div");
+    detalle.style.marginTop = "5px";
+    detalle.textContent = texto || "Revisa la solicitud y atiende los cambios solicitados antes de volver a enviarla.";
+    aviso.append(titulo, detalle);
+  }
+
   function instalarPreflight() {
     if (window.__solicitudFirmaRemotaPreflightActivo) return;
     const fetchAnterior = window.fetch.bind(window);
@@ -222,11 +344,6 @@
       const url = typeof input === "string" ? input : String(input?.url || "");
       const method = String(init?.method || "GET").toUpperCase();
 
-      // Persistencia usa estado-borrador.php para reconstruir el formulario.
-      // Cuando la solicitud ya esta PENDIENTE FIRMA / VOBO / APROBADA, cargar
-      // sigue siendo valido pero guardar ya no. Si el endpoint de borrador
-      // responde DRAFT_NOT_EDITABLE, consultamos estado-solicitud.php y devolvemos
-      // esa misma fotografia completa en modo solo lectura.
       if (url.includes(BORRADOR_ENDPOINT) && method === "POST") {
         let body = null;
         try {
@@ -325,6 +442,7 @@
   function iniciar() {
     instalarPuenteExpediente();
     instalarPreflight();
+    prepararCorreccion();
 
     document.addEventListener("click", (event) => {
       const button = event.target instanceof Element ? event.target.closest("#btnValidate") : null;
@@ -335,7 +453,10 @@
 
     setTimeout(asegurarPanelRecuperacion, 500);
     setInterval(asegurarPanelRecuperacion, 900);
-    window.addEventListener("focus", asegurarPanelRecuperacion);
+    window.addEventListener("focus", () => {
+      asegurarPanelRecuperacion();
+      prepararCorreccion();
+    });
   }
 
   if (document.readyState === "loading") {
