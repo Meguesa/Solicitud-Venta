@@ -70,8 +70,11 @@
   }
 
   function crearTarjeta(item) {
-    const link = document.createElement('a');
-    link.className = 'request-card';
+    const card = document.createElement('div');
+    card.className = 'request-card';
+    card.setAttribute('role', 'link');
+    card.tabIndex = 0;
+
     const folio = String(item.folio || '');
     const itemId = String(item.itemId || '').trim();
     const voboEstatus = String(item.voboEstatus || '').trim().toUpperCase();
@@ -92,16 +95,45 @@
     if (/^\d+$/.test(itemId)) params.set('itemId', itemId);
     if (esCorreccion) params.set('correccion', '1');
     if (esRevisionCompleta) params.set('resumen', '1');
-    link.href = `/solicitud-venta/?${params.toString()}`;
+    const solicitudUrl = `/solicitud-venta/?${params.toString()}`;
 
-    link.append(
+    const abrirSolicitud = () => {
+      window.location.href = solicitudUrl;
+    };
+
+    card.addEventListener('click', (event) => {
+      if (event.target instanceof Element && event.target.closest('.request-pdf-button')) return;
+      abrirSolicitud();
+    });
+    card.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      if (event.target instanceof Element && event.target.closest('.request-pdf-button')) return;
+      event.preventDefault();
+      abrirSolicitud();
+    });
+
+    card.append(
       campo('Folio', item.folio || '—'),
       campo('Cliente', item.cliente || '—'),
       campo('Estatus', estatusVisible, true),
       campo('Componentes', String(item.componentes || 1)),
       campo('Precio total', moneda(item.precioTotal))
     );
-    return link;
+
+    if (vista === 'aprobadas' && /^SV-\d{4}-\d+$/.test(folio)) {
+      card.classList.add('has-pdf-action');
+      const pdf = document.createElement('a');
+      pdf.className = 'request-pdf-button';
+      pdf.href = `/api/solicitud-venta/pdf-final.php?folio=${encodeURIComponent(folio)}`;
+      pdf.target = '_blank';
+      pdf.rel = 'noopener noreferrer';
+      pdf.textContent = 'Ver PDF final';
+      pdf.setAttribute('aria-label', `Ver PDF final de ${folio}`);
+      pdf.addEventListener('click', (event) => event.stopPropagation());
+      card.appendChild(pdf);
+    }
+
+    return card;
   }
 
   function campo(etiqueta, valor, estatus = false) {
