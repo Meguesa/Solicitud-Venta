@@ -121,6 +121,119 @@ $firmasVisibilityFix = <<<'HTML'
 </script>
 HTML;
 
+// Cuando se envia una firma remota desde el Resumen, firma-remota.js actualiza
+// la seccion original de Firmas, no la copia que muestra el resumen. Al pasar a
+// PENDIENTE FIRMA regresamos automaticamente a la seccion real y restauramos la
+// liga guardada localmente para que siempre quede visible y copiable.
+$firmaRemotaPendingFix = <<<'HTML'
+<script id="solicitudFirmaRemotaPendingFix">
+(() => {
+  const STORAGE_PREFIX = 'solicitudVenta:borradorActivo:v1:';
+  let regresando = false;
+
+  function normalizar(valor) {
+    return String(valor || '').trim().toUpperCase().replace(/\s+/g, ' ');
+  }
+
+  function estaPendienteFirma() {
+    const body = normalizar(document.body.dataset.solicitudEstatus || '');
+    const pill = normalizar(document.querySelector('.status-pill')?.textContent || '');
+    const boton = normalizar(document.getElementById('btnValidate')?.textContent || '');
+    const mensaje = normalizar(document.getElementById('formMessage')?.textContent || '');
+    return body.includes('PENDIENTE FIRMA')
+      || pill.includes('PENDIENTE FIRMA')
+      || boton.includes('PENDIENTE DE FIRMA')
+      || mensaje.includes('PENDIENTE DE FIRMA');
+  }
+
+  function obtenerFolio() {
+    const visible = String(document.querySelector('.folio-box strong')?.textContent || '').trim().toUpperCase();
+    if (/^SV-\d{4}-\d+$/.test(visible)) return visible;
+    const query = String(new URLSearchParams(location.search).get('folio') || '').trim().toUpperCase();
+    return /^SV-\d{4}-\d+$/.test(query) ? query : '';
+  }
+
+  function leerReferenciaLocal() {
+    try {
+      const correo = String(
+        window.SOLICITUD_PORTAL_SESSION?.user?.email
+        || document.getElementById('userEmail')?.textContent
+        || ''
+      ).trim().toLowerCase();
+      if (!correo) return null;
+      const raw = localStorage.getItem(`${STORAGE_PREFIX}${correo}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function restaurarLiga() {
+    const input = document.getElementById('firmaRemotaUrl');
+    const resultado = document.getElementById('firmaRemotaResultado');
+    if (!(input instanceof HTMLInputElement) || !(resultado instanceof HTMLElement)) return;
+
+    let url = String(input.value || '').trim();
+    if (!url) {
+      const referencia = leerReferenciaLocal();
+      const folio = obtenerFolio();
+      const folioGuardado = String(referencia?.folio || '').trim().toUpperCase();
+      if (folio && folioGuardado === folio) url = String(referencia?.firmaUrl || '').trim();
+    }
+
+    if (url) {
+      input.value = url;
+      resultado.hidden = false;
+      resultado.style.removeProperty('display');
+    }
+  }
+
+  function mostrarPanelGestion() {
+    const panel = document.getElementById('firmaRemotaGestion')
+      || document.getElementById('firmaRemotaRecuperacionFix');
+    if (!(panel instanceof HTMLElement)) return;
+    panel.hidden = false;
+    panel.style.removeProperty('display');
+  }
+
+  function salirDelResumen() {
+    const resumen = document.getElementById('wizardSummary');
+    const atras = document.getElementById('wizardBack');
+    if (!(resumen instanceof HTMLElement) || resumen.hidden) return;
+    if (!(atras instanceof HTMLButtonElement) || atras.disabled || regresando) return;
+
+    regresando = true;
+    atras.click();
+    window.setTimeout(() => {
+      regresando = false;
+      restaurarLiga();
+      mostrarPanelGestion();
+      document.getElementById('firmasSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+  }
+
+  function reconciliar() {
+    if (!estaPendienteFirma()) return;
+    salirDelResumen();
+    restaurarLiga();
+    mostrarPanelGestion();
+  }
+
+  function iniciar() {
+    reconciliar();
+    window.setInterval(reconciliar, 500);
+    window.addEventListener('focus', reconciliar);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', iniciar, { once: true });
+  } else {
+    iniciar();
+  }
+})();
+</script>
+HTML;
+
 if (strpos($source, '</head>') !== false) {
     $source = str_replace('</head>', '  ' . $bootstrapScript . "\n  " . $uiCleanupStyle . "\n</head>", $source);
 } else {
@@ -128,9 +241,9 @@ if (strpos($source, '</head>') !== false) {
 }
 
 if (strpos($source, '</body>') !== false) {
-    $source = str_replace('</body>', $firmasVisibilityFix . "\n</body>", $source);
+    $source = str_replace('</body>', $firmasVisibilityFix . "\n" . $firmaRemotaPendingFix . "\n</body>", $source);
 } else {
-    $source .= $firmasVisibilityFix;
+    $source .= $firmasVisibilityFix . $firmaRemotaPendingFix;
 }
 
 header('Content-Type: text/html; charset=utf-8');
