@@ -19,7 +19,7 @@ $cobranzaVobo = portal_user_can_cobranza_vobo();
   <meta name="theme-color" content="#225b8a">
   <title>Mis Solicitudes | Jardines de Juan Pablo</title>
   <link rel="stylesheet" href="/assets/css/account-menu.css">
-  <link rel="stylesheet" href="./inicio.css?v=20260820-3">
+  <link rel="stylesheet" href="./inicio.css?v=20260822-1">
 </head>
 <body>
   <header class="seller-header">
@@ -94,6 +94,6 @@ $cobranzaVobo = portal_user_can_cobranza_vobo();
     </section>
   </main>
 
-  <script src="./inicio.js?v=20260821-5"></script>
+  <script src="./inicio.js?v=20260822-1"></script>
 </body>
 </html>
