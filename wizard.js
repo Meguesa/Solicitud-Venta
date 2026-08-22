@@ -282,9 +282,19 @@
   }
 
   function mostrarResumen(paginas) {
+    // Construimos primero el resumen y solo ocultamos la pagina actual cuando la
+    // clonacion termino correctamente. Asi cualquier error inesperado deja al
+    // usuario en Firmas en lugar de una pantalla vacia.
+    try {
+      construirResumen(paginas);
+    } catch (error) {
+      console.error('No fue posible construir el resumen de la solicitud:', error);
+      mostrarMensaje(`No fue posible mostrar el resumen: ${error?.message || error}`, 'error');
+      return;
+    }
+
     enResumen = true;
     document.querySelectorAll('#solicitudForm > section.form-section').forEach((section) => section.classList.add('wizard-page-hidden'));
-    construirResumen(paginas);
     summary.hidden = false;
 
     const total = paginas.length + 1;
@@ -292,7 +302,6 @@
     document.getElementById('wizardStepTitle').textContent = 'Resumen de la solicitud';
     document.getElementById('wizardProgressBar').style.width = '100%';
     document.getElementById('wizardBack').disabled = false;
-    document.getElementById('wizardNext').hidden = true;
     document.getElementById('wizardNavHint').textContent = 'Revisa toda la información. Si todo es correcto, utiliza las acciones inferiores para guardar o enviar.';
     controlarBotonFinal(true);
     header?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -360,6 +369,11 @@
       }
 
       if (original instanceof HTMLInputElement && clone instanceof HTMLInputElement) {
+        // Los navegadores bloquean asignar un valor no vacio a input[type=file].
+        // Esos controles se eliminan del resumen inmediatamente despues, por lo
+        // que no debemos copiar su C:\\fakepath\\... al clon.
+        if (original.type === 'file') return;
+
         if (original.type === 'checkbox' || original.type === 'radio') {
           clone.checked = original.checked;
           if (original.checked) clone.setAttribute('checked', 'checked');
@@ -375,7 +389,7 @@
 
   function controlarBotonFinal(enFinal) {
     const next = document.getElementById('wizardNext');
-    if (next) next.hidden = false;
+    if (next) next.hidden = Boolean(enFinal);
     const validar = document.getElementById('btnValidate');
     if (!validar) return;
     const estatus = String(document.body.dataset.solicitudEstatus || document.querySelector('.status-pill')?.textContent || '').trim().toUpperCase();
