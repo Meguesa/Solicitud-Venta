@@ -36,10 +36,31 @@ $sessionJson = json_encode(
 );
 $bootstrapScript = '<script>window.SOLICITUD_PORTAL_SESSION=' . $sessionJson . ';</script>';
 
+// Ajustes de interfaz comunes a todos los estados de la solicitud:
+// 1) El encabezado superior conserva solamente la marca Jardines de Juan Pablo.
+// 2) El unico acceso visible a Inicio es el del encabezado superior.
+// 3) En el Paso 11 / Resumen no debe existir una accion "Siguiente".
+$uiCleanupStyle = <<<'HTML'
+<style id="solicitudUiCleanup">
+  .app-header > div:first-child > h1 {
+    display: none !important;
+  }
+
+  #btnRegresarInicioSolicitud,
+  #btnRegresarInicioInferior {
+    display: none !important;
+  }
+
+  #wizardSummary:not([hidden]) + #wizardNav #wizardNext {
+    display: none !important;
+  }
+</style>
+HTML;
+
 if (strpos($source, '</head>') !== false) {
-    $source = str_replace('</head>', '  ' . $bootstrapScript . "\n</head>", $source);
+    $source = str_replace('</head>', '  ' . $bootstrapScript . "\n  " . $uiCleanupStyle . "\n</head>", $source);
 } else {
-    $source = $bootstrapScript . $source;
+    $source = $bootstrapScript . $uiCleanupStyle . $source;
 }
 
 header('Content-Type: text/html; charset=utf-8');
