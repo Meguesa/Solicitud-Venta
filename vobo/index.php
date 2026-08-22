@@ -128,6 +128,7 @@ $approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
     const ES_COBRANZA = ETAPA === 'cobranza';
     const API = '/api/solicitud-venta/vobo.php';
     const FIRMA_API = '/api/solicitud-venta/vobo-firma.php';
+    const NOTIFICACION_COBRANZA_API = '/api/solicitud-venta/notificar-cobranza.php';
     const btnAprobar = document.getElementById('btnAprobarVobo');
     const btnCorreccion = document.getElementById('btnSolicitarCorreccion');
     const correctionPanel = document.getElementById('correctionPanel');
@@ -156,9 +157,21 @@ $approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
       try {
         await guardarFirma(folio, firma);
         const data = await llamarApi({ accion: 'aprobar', folio });
+        let avisoNotificacion = '';
+
+        if (!ES_COBRANZA) {
+          try {
+            const notificacion = await notificarCobranza(folio);
+            avisoNotificacion = ` ${notificacion.message || 'Se notificó al área de Cobranza.'}`;
+          } catch (notificationError) {
+            console.error('La solicitud avanzó a Cobranza pero falló la notificación:', notificationError);
+            avisoNotificacion = ' La solicitud sí pasó a Cobranza, pero no fue posible enviar la notificación automática.';
+          }
+        }
+
         document.getElementById('detailStatus').textContent = data.estatus || (ES_COBRANZA ? 'APROBADA' : 'PENDIENTE COBRANZA');
-        mostrarMensaje(data.message || `${folio} aprobado correctamente.`, 'ok');
-        setTimeout(() => window.location.reload(), 900);
+        mostrarMensaje((data.message || `${folio} aprobado correctamente.`) + avisoNotificacion, 'ok');
+        setTimeout(() => window.location.reload(), 1500);
       } catch (error) {
         mostrarMensaje(error.message || String(error), 'error');
         bloquear(false);
@@ -168,6 +181,18 @@ $approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
     async function guardarFirma(folio, firma) {
       const url = `${FIRMA_API}?etapa=${encodeURIComponent(ETAPA)}`;
       const response = await fetch(url, { method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folio, firma }) });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.ok) throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+      return data;
+    }
+
+    async function notificarCobranza(folio) {
+      const response = await fetch(NOTIFICACION_COBRANZA_API, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folio })
+      });
       const data = await response.json().catch(() => null);
       if (!response.ok || !data?.ok) throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
       return data;
