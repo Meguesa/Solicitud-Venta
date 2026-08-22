@@ -145,6 +145,14 @@
     if (!estatus && data?.firmado) estatus = "PENDIENTE VOBO";
     if (!estatus) return;
 
+    // Cuando la solicitud se abre desde Mis Solicitudes, persistencia.js debe
+    // reconstruir primero el folio y los componentes. Si bloqueamos los controles
+    // mientras el recuadro de folio aun dice PENDIENTE, el boton Agregar componente
+    // queda deshabilitado antes de que la restauracion pueda recrear el expediente.
+    // El monitor volvera a consultar en unos segundos y aplicara el solo lectura
+    // una vez que el folio visible coincida con el solicitado en la URL.
+    if (estatus !== "BORRADOR" && restauracionPendienteDesdeQuery(folio)) return;
+
     const cambio = ultimoEstatus !== estatus;
     ultimoEstatus = estatus;
 
@@ -435,6 +443,17 @@
     const usuario = window.solicitudVentaAuth?.getUser?.();
     const correo = String(usuario?.username || document.getElementById("userEmail")?.textContent || "").trim().toLowerCase();
     return correo ? `${STORAGE_PREFIX}${correo}` : "";
+  }
+
+  function restauracionPendienteDesdeQuery(folio) {
+    try {
+      const solicitado = String(new URLSearchParams(location.search).get("folio") || "").trim().toUpperCase();
+      if (!/^SV-\d{4}-\d+$/.test(solicitado) || solicitado !== String(folio || "").trim().toUpperCase()) return false;
+      const visible = String(document.querySelector(".folio-box strong")?.textContent || "").trim().toUpperCase();
+      return visible !== solicitado;
+    } catch (_) {
+      return false;
+    }
   }
 
   function obtenerFolioActual() {
