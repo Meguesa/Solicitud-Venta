@@ -129,6 +129,7 @@ $approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
     const API = '/api/solicitud-venta/vobo.php';
     const FIRMA_API = '/api/solicitud-venta/vobo-firma.php';
     const NOTIFICACION_COBRANZA_API = '/api/solicitud-venta/notificar-cobranza.php';
+    const EXPEDIENTE_FINAL_API = '/api/solicitud-venta/notificar-expediente-final.php';
     const btnAprobar = document.getElementById('btnAprobarVobo');
     const btnCorreccion = document.getElementById('btnSolicitarCorreccion');
     const correctionPanel = document.getElementById('correctionPanel');
@@ -167,11 +168,20 @@ $approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
             console.error('La solicitud avanzó a Cobranza pero falló la notificación:', notificationError);
             avisoNotificacion = ' La solicitud sí pasó a Cobranza, pero no fue posible enviar la notificación automática.';
           }
+        } else {
+          try {
+            mostrarMensaje(`Solicitud ${folio} aprobada. Generando PDF y enviando expediente final...`);
+            const envioFinal = await notificarExpedienteFinal(folio);
+            avisoNotificacion = ` ${envioFinal.message || 'El expediente final fue enviado por correo.'}`;
+          } catch (notificationError) {
+            console.error('La solicitud fue aprobada pero falló el envío del expediente final:', notificationError);
+            avisoNotificacion = ' La solicitud sí quedó APROBADA, pero no fue posible enviar automáticamente el expediente final.';
+          }
         }
 
         document.getElementById('detailStatus').textContent = data.estatus || (ES_COBRANZA ? 'APROBADA' : 'PENDIENTE COBRANZA');
         mostrarMensaje((data.message || `${folio} aprobado correctamente.`) + avisoNotificacion, 'ok');
-        setTimeout(() => window.location.reload(), 1500);
+        setTimeout(() => window.location.reload(), ES_COBRANZA ? 3000 : 1500);
       } catch (error) {
         mostrarMensaje(error.message || String(error), 'error');
         bloquear(false);
@@ -188,6 +198,18 @@ $approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
 
     async function notificarCobranza(folio) {
       const response = await fetch(NOTIFICACION_COBRANZA_API, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folio })
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.ok) throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+      return data;
+    }
+
+    async function notificarExpedienteFinal(folio) {
+      const response = await fetch(EXPEDIENTE_FINAL_API, {
         method: 'POST',
         cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
