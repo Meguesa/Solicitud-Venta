@@ -1,0 +1,175 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f5f2ed;
+  color: #261c18;
+}
+
+.signature-shell {
+  width: min(960px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: 28px 0 48px;
+}
+
+.signature-header {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.signature-header p,
+.signature-header h1 { margin: 0; }
+.signature-header p { color: #6b625d; font-size: 14px; }
+.signature-header h1 { font-size: clamp(24px, 5vw, 34px); }
+
+.brand {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 12px;
+  background: #225b8a;
+  color: white;
+  font-weight: 800;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e6dfd7;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 26px rgba(46, 32, 23, 0.05);
+}
+
+.card h2 { margin: 0 0 12px; font-size: 20px; }
+.muted { color: #706762; }
+
+.status-card { text-align: center; padding: 38px 22px; }
+.status-card.error { border-color: #e2b9b9; background: #fff7f7; }
+.status-card.success { border-color: #b8dbc7; background: #f4fbf7; }
+
+.folio-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #6f665f;
+  margin-bottom: 16px;
+}
+.folio-row strong { color: #225b8a; }
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.summary-grid > div,
+.component-item,
+.detail-field {
+  border: 1px solid #ece5de;
+  border-radius: 12px;
+  padding: 13px;
+  background: #fcfaf7;
+}
+.summary-grid span,
+.description span,
+.component-item span,
+.detail-field span {
+  display: block;
+  color: #786e68;
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+
+.description { margin-top: 16px; }
+.description p { margin: 4px 0 0; line-height: 1.5; }
+.components { display: grid; gap: 10px; }
+.component-title { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.component-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+.full-detail-sections {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+.detail-section {
+  border-top: 1px solid #ebe3db;
+  padding-top: 16px;
+}
+.detail-section:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.detail-section h3 {
+  margin: 0 0 10px;
+  font-size: 17px;
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.detail-field strong {
+  display: block;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.detail-field-long { grid-column: 1 / -1; }
+
+.consent-line {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 14px;
+  border-radius: 12px;
+  background: #f4f8fb;
+  margin-bottom: 22px;
+  line-height: 1.5;
+}
+.consent-line input { margin-top: 4px; width: 20px; height: 20px; flex: 0 0 auto; }
+
+.signature-canvas {
+  display: block;
+  width: 100%;
+  height: 210px;
+  border: 2px dashed #bdb4ad;
+  border-radius: 12px;
+  background: #fff;
+  touch-action: none;
+}
+
+.signature-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 11px 16px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.55; cursor: wait; }
+button.primary { background: #225b8a; color: #fff; }
+button.secondary { background: #eee8e1; color: #382d27; }
+
+.form-message { min-height: 22px; margin: 12px 0 0; }
+.form-message.error { color: #9b2525; }
+.form-message.ok { color: #17693e; }
+
+@media (max-width: 720px) {
+  .signature-shell { width: min(100% - 18px, 960px); padding-top: 16px; }
+  .card { padding: 16px; border-radius: 14px; }
+  .summary-grid, .component-details, .detail-grid { grid-template-columns: 1fr; }
+  .detail-field-long { grid-column: auto; }
+  .signature-actions { flex-direction: column-reverse; }
+  .signature-actions button { width: 100%; }
+}

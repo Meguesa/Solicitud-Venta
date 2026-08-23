@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#225b8a">
+  <title>Firma de Solicitud | Jardines de Juan Pablo</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="signature-shell">
+    <header class="signature-header">
+      <div class="brand">JdJP</div>
+      <div>
+        <p>Jardines de Juan Pablo</p>
+        <h1>Firma de Solicitud</h1>
+      </div>
+    </header>
+
+    <section id="loadingPanel" class="card status-card">
+      <h2>Cargando solicitud...</h2>
+      <p>Estamos validando el enlace seguro.</p>
+    </section>
+
+    <section id="errorPanel" class="card status-card error" hidden>
+      <h2>No fue posible abrir la solicitud</h2>
+      <p id="errorMessage"></p>
+    </section>
+
+    <section id="signedPanel" class="card status-card success" hidden>
+      <h2>Firma registrada correctamente</h2>
+      <p id="signedMessage">La solicitud fue enviada al siguiente paso de validación.</p>
+    </section>
+
+    <div id="signatureContent" hidden>
+      <section class="card">
+        <div class="folio-row"><span>Folio</span><strong id="folio"></strong></div>
+        <h2 id="clienteNombre">Cliente</h2>
+        <p class="muted">Revisa cuidadosamente toda la información antes de firmar.</p>
+      </section>
+
+      <section class="card">
+        <h2>Resumen de la venta</h2>
+        <div class="summary-grid">
+          <div><span>Fecha</span><strong id="fechaSolicitud">—</strong></div>
+          <div><span>Tipo de venta</span><strong id="tipoVenta">—</strong></div>
+          <div><span>Forma de pago</span><strong id="formaPago">—</strong></div>
+          <div><span>Método de pago</span><strong id="metodoPago">—</strong></div>
+          <div><span>Precio total</span><strong id="precioTotal">$0.00</strong></div>
+          <div><span>Enganche</span><strong id="enganche">$0.00</strong></div>
+          <div><span>Saldo</span><strong id="saldo">$0.00</strong></div>
+        </div>
+        <div id="descripcionVentaWrap" class="description" hidden>
+          <span>Descripción</span>
+          <p id="descripcionVenta"></p>
+        </div>
+      </section>
+
+      <section id="detalleCompletoSection" class="card" hidden>
+        <h2>Información completa de la solicitud</h2>
+        <p class="muted">Verifica tus datos personales, condiciones de la venta y demás información capturada por tu asesor.</p>
+        <div id="detalleCompleto" class="full-detail-sections"></div>
+      </section>
+
+      <section class="card">
+        <h2>Componentes incluidos</h2>
+        <div id="componentes" class="components"></div>
+      </section>
+
+      <section class="card consent-card">
+        <label class="consent-line">
+          <input id="consentimiento" type="checkbox">
+          <span>Declaro que revisé la información de la solicitud, que los datos y condiciones mostrados corresponden a lo acordado y que manifiesto mi consentimiento mediante esta firma electrónica.</span>
+        </label>
+
+        <h2>Firma del cliente</h2>
+        <p class="muted">Firma dentro del recuadro usando tu dedo o un lápiz digital.</p>
+        <canvas id="firmaCanvas" class="signature-canvas" aria-label="Firma del cliente"></canvas>
+        <div class="signature-actions">
+          <button id="btnLimpiar" type="button" class="secondary">Limpiar firma</button>
+          <button id="btnFirmar" type="button" class="primary">Aceptar y firmar</button>
+        </div>
+        <p id="formMessage" class="form-message"></p>
+      </section>
+    </div>
+  </main>
+  <script src="./firma.js"></script>
+</body>
+</html>
