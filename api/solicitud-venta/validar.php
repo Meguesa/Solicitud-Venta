@@ -103,6 +103,11 @@ try {
         return ((int) ($fa['Componente_Numero'] ?? 0)) <=> ((int) ($fb['Componente_Numero'] ?? 0));
     });
 
+    // field_2 conserva la fecha/hora efectiva en la que el vendedor envia la
+    // solicitud al flujo de Vo.Bo. Antes solo recibia la fecha del formulario,
+    // por lo que el PDF terminaba mostrando 00:00.
+    $fechaEnvioUtc = gmdate('Y-m-d\TH:i:s\Z');
+
     $actualizados = [];
     try {
         foreach ($items as $item) {
@@ -113,7 +118,8 @@ try {
                 $config['siteId'],
                 $config['listId'],
                 $id,
-                $estatusDestino
+                $estatusDestino,
+                $fechaEnvioUtc
             );
             $actualizados[] = $id;
         }
@@ -170,6 +176,7 @@ try {
         'folio' => $folio,
         'solicitudGrupo' => $solicitudGrupo,
         'estatus' => $estatusDestino,
+        'fechaEnvio' => $fechaEnvioUtc,
         'componentesActualizados' => count($componentes),
         'componentes' => $componentes,
         'notificacionComercial' => $notificacionComercial,
@@ -283,12 +290,17 @@ function actualizarEstatus(
     string $siteId,
     string $listId,
     string $itemId,
-    string $estatus
+    string $estatus,
+    string $fechaEnvio = ''
 ): void {
     $url = 'https://graph.microsoft.com/v1.0/sites/' . rawurlencode($siteId)
         . '/lists/' . rawurlencode($listId)
         . '/items/' . rawurlencode($itemId) . '/fields';
-    $body = json_encode(['field_1' => $estatus], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    $fields = ['field_1' => $estatus];
+    if ($fechaEnvio !== '') $fields['field_2'] = $fechaEnvio;
+
+    $body = json_encode($fields, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     if (!is_string($body)) throw new RuntimeException('No fue posible serializar el cambio de estatus.');
 
     svCurlJson($url, 'PATCH', [
