@@ -1,0 +1,257 @@
+name: Publicar Solicitud de Venta independiente en cPanel
+
+on:
+  workflow_dispatch:
+    inputs:
+      alcance:
+        description: "Alcance del despliegue"
+        required: true
+        default: "completo"
+        type: choice
+        options:
+          - interfaz
+          - correccion
+          - sesion
+          - completo
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-solicitud-independiente
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Construir y publicar Solicitud de Venta
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Descargar Solicitud de Venta
+        uses: actions/checkout@v6
+
+      - name: Validar estructura autonoma del repositorio
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -s index.php
+          test -s index.html
+          test -s app.js
+          test -s auth.js
+          test -s config.js
+          test -s styles.css
+          test -s persistencia.js
+          test -s firma-remota.js
+          test -s firma-remota-fix.js
+          test -s correccion-fix.js
+          test -s correccion-validar-fix.js
+          test -s wizard.js
+          test -s wizard.css
+          test -d inicio
+          test -d vobo
+          test -d api/solicitud-venta
+          test -d firma
+          test -s api/solicitud-venta/_common.php
+          test -s api/solicitud-venta/borrador.php
+          test -s api/solicitud-venta/validar.php
+          test -s api/solicitud-venta/vobo.php
+          test -s api/solicitud-venta/firma-remota-publica.php
+          test -s firma/index.html
+          test -s firma/firma.js
+          test -s firma/styles.css
+          test -s tools/prepare_solicitud_portal_session.py
+          test -s tools/deploy_solicitud_ftps.sh
+
+          count_php="$(find api/solicitud-venta -maxdepth 1 -type f -name '*.php' | wc -l | tr -d ' ')"
+          echo "Endpoints PHP disponibles: ${count_php}"
+          if [ "$count_php" -lt 30 ]; then
+            echo "ERROR: faltan endpoints del backend de Solicitud de Venta."
+            exit 1
+          fi
+
+      - name: Construir paquete de produccion independiente
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf _deploy
+          mkdir -p _deploy/solicitud-venta/inicio
+          mkdir -p _deploy/solicitud-venta/vobo
+          mkdir -p _deploy/api
+          mkdir -p _deploy/firma
+          mkdir -p _deploy/scripts
+
+          # Interfaz principal. Se conservan exactamente los modulos que utiliza
+          # la version actual de produccion.
+          for file in \
+            index.php index.html styles.css wizard.css config.js auth.js app.js \
+            componentes.js componentes-sync.js correccion-validar-fix.js \
+            firma-remota.js firma-remota-seguimiento.js firma-remota-gestion.js \
+            firma-remota-fix.js correccion-fix.js firma-remota.css extras.js \
+            documentos-identificacion-doble.js documentacion-fix.js persistencia.js \
+            sucursales-componentes.js wizard.js resumen-directo.js; do
+            test -s "$file"
+            cp "$file" "_deploy/solicitud-venta/$file"
+          done
+
+          cp -a inicio/. _deploy/solicitud-venta/inicio/
+          cp -a vobo/. _deploy/solicitud-venta/vobo/
+          cp -a api/solicitud-venta _deploy/api/solicitud-venta
+          cp -a firma/. _deploy/firma/
+          cp tools/prepare_solicitud_portal_session.py _deploy/scripts/prepare_solicitud_portal_session.py
+
+          python3 <<'PY'
+          from pathlib import Path
+          from urllib.parse import urlsplit
+          from collections import Counter
+          import re
+
+          path = Path('_deploy/solicitud-venta/index.html')
+          source = path.read_text(encoding='utf-8')
+
+          if 'firma-remota.css' not in source:
+              source = source.replace(
+                  '<link rel="stylesheet" href="styles.css">',
+                  '<link rel="stylesheet" href="styles.css">\n  <link rel="stylesheet" href="firma-remota.css?v=20260820-1">'
+              )
+          if 'wizard.css' not in source:
+              source = source.replace('</head>', '  <link rel="stylesheet" href="wizard.css?v=20260821-1">\n</head>')
+
+          source = re.sub(
+              r'\s*<script[^>]+(?:msal-browser|alcdn\.msauth|cdn\.jsdelivr\.net/npm/@azure/msal-browser)[^>]*></script>\s*',
+              '\n',
+              source,
+              flags=re.I,
+          )
+
+          modules = [
+              'componentes.js',
+              'componentes-sync.js',
+              'correccion-validar-fix.js',
+              'firma-remota.js',
+              'firma-remota-seguimiento.js',
+              'firma-remota-gestion.js',
+              'extras.js',
+              'documentos-identificacion-doble.js',
+              'persistencia.js',
+              'sucursales-componentes.js',
+              'wizard.js',
+              'resumen-directo.js',
+              'firma-remota-fix.js',
+              'correccion-fix.js',
+              'documentacion-fix.js',
+          ]
+          module_set = set(modules)
+
+          script_pattern = re.compile(
+              r'\s*<script\b[^>]*\bsrc=["\']([^"\']+)["\'][^>]*></script>\s*',
+              flags=re.I,
+          )
+
+          def basename_src(src: str) -> str:
+              path_part = urlsplit(src).path.rstrip('/')
+              return path_part.rsplit('/', 1)[-1] if path_part else ''
+
+          def remove_managed_script(match: re.Match) -> str:
+              return '\n' if basename_src(match.group(1)) in module_set else match.group(0)
+
+          source = script_pattern.sub(remove_managed_script, source)
+
+          if '</body>' not in source:
+              raise RuntimeError('No se encontro </body> para insertar los modulos de Solicitud de Venta.')
+
+          version = '20260823-independent-1'
+          tags = '\n'.join(f'  <script src="{module}?v={version}"></script>' for module in modules)
+          source = source.replace('</body>', f'{tags}\n</body>', 1)
+
+          nombres = [basename_src(src) for src in script_pattern.findall(source)]
+          counts = Counter(nombres)
+          for module in modules:
+              if counts[module] != 1:
+                  raise RuntimeError(f'{module} aparece {counts[module]} veces; se esperaba exactamente 1.')
+
+          path.write_text(source, encoding='utf-8')
+
+          componentes_path = Path('_deploy/solicitud-venta/componentes.js')
+          componentes_source = componentes_path.read_text(encoding='utf-8')
+          sentinel = 'window.__solicitudComponentesModuloActivo'
+          if sentinel not in componentes_source:
+              marker = '(() => {'
+              replacement = """(() => {\n  if (window.__solicitudComponentesModuloActivo) return;\n  window.__solicitudComponentesModuloActivo = true;"""
+              if marker not in componentes_source:
+                  raise RuntimeError('No se encontro el inicio esperado de componentes.js.')
+              componentes_source = componentes_source.replace(marker, replacement, 1)
+              componentes_path.write_text(componentes_source, encoding='utf-8')
+          PY
+
+          # Replicamos la preparacion de sesion que utilizaba produccion. El
+          # _common.php migrado ya contiene la autenticacion correcta del Portal,
+          # por lo que se conserva exactamente despues de preparar el resto.
+          cp _deploy/api/solicitud-venta/_common.php /tmp/solicitud-common-session.php
+          (
+            cd _deploy
+            python3 scripts/prepare_solicitud_portal_session.py
+          )
+          cp /tmp/solicitud-common-session.php _deploy/api/solicitud-venta/_common.php
+
+          grep -q '__solicitudComponentesModuloActivo' _deploy/solicitud-venta/componentes.js
+          grep -q '__solicitudFirmaRemotaPreflightActivo' _deploy/solicitud-venta/firma-remota-fix.js
+          grep -q 'VALIDAR_ENDPOINT' _deploy/solicitud-venta/correccion-validar-fix.js
+          grep -q 'btnSolicitudInicio' _deploy/solicitud-venta/index.html
+          grep -q 'referenciaSolicitada' _deploy/solicitud-venta/persistencia.js
+          grep -Eq 'reconstruirEstado(Legado|DesdeFields)' _deploy/api/solicitud-venta/estado-borrador.php
+          grep -q 'PORTAL_SESSION' _deploy/api/solicitud-venta/_common.php
+          grep -q 'session_name' _deploy/api/solicitud-venta/_common.php
+
+          if grep -qi 'msal-browser' _deploy/solicitud-venta/index.html; then
+            echo 'ERROR: la interfaz aun intenta cargar MSAL independiente.'
+            exit 1
+          fi
+
+          echo "Paquete de produccion construido exclusivamente desde Solicitud-Venta."
+
+      - name: Preparar PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: json, openssl, curl, mbstring, fileinfo
+          coverage: none
+
+      - name: Validar PHP del paquete
+        shell: bash
+        run: |
+          set -euo pipefail
+          find _deploy/api/solicitud-venta _deploy/solicitud-venta _deploy/firma -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Instalar cliente FTPS resiliente
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp
+
+      - name: Validar credenciales de publicacion
+        shell: bash
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "${FTP_SERVER:-}"
+          test -n "${FTP_USERNAME:-}"
+          test -n "${FTP_PASSWORD:-}"
+          echo "Credenciales FTPS presentes."
+
+      - name: Publicar exclusivamente Solicitud de Venta
+        shell: bash
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          SOLICITUD_DEPLOY_SCOPE: ${{ inputs.alcance }}
+        run: |
+          set -euo pipefail
+          cd _deploy
+          bash ../tools/deploy_solicitud_ftps.sh
