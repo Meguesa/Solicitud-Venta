@@ -43,6 +43,7 @@ jobs:
           test -s config.js
           test -s styles.css
           test -s persistencia.js
+          test -s financiamiento-integracion.js
           test -s firma-remota.js
           test -s firma-remota-fix.js
           test -s correccion-fix.js
@@ -55,6 +56,7 @@ jobs:
           test -d firma
           test -s api/solicitud-venta/_common.php
           test -s api/solicitud-venta/borrador.php
+          test -s api/solicitud-venta/archivos.php
           test -s api/solicitud-venta/validar.php
           test -s api/solicitud-venta/vobo.php
           test -s api/solicitud-venta/firma-remota-publica.php
@@ -83,15 +85,13 @@ jobs:
           mkdir -p _deploy/firma
           mkdir -p _deploy/scripts
 
-          # Interfaz principal. Se conservan exactamente los modulos que utiliza
-          # la version actual de produccion.
           for file in \
             index.php index.html styles.css wizard.css config.js auth.js app.js \
             componentes.js componentes-sync.js correccion-validar-fix.js \
             firma-remota.js firma-remota-seguimiento.js firma-remota-gestion.js \
             firma-remota-fix.js correccion-fix.js firma-remota.css extras.js \
             documentos-identificacion-doble.js documentacion-fix.js persistencia.js \
-            sucursales-componentes.js wizard.js resumen-directo.js; do
+            financiamiento-integracion.js sucursales-componentes.js wizard.js resumen-directo.js; do
             test -s "$file"
             cp "$file" "_deploy/solicitud-venta/$file"
           done
@@ -136,6 +136,7 @@ jobs:
               'extras.js',
               'documentos-identificacion-doble.js',
               'persistencia.js',
+              'financiamiento-integracion.js',
               'sucursales-componentes.js',
               'wizard.js',
               'resumen-directo.js',
@@ -162,7 +163,7 @@ jobs:
           if '</body>' not in source:
               raise RuntimeError('No se encontro </body> para insertar los modulos de Solicitud de Venta.')
 
-          version = '20260823-independent-1'
+          version = '20260822-financiamiento-1'
           tags = '\n'.join(f'  <script src="{module}?v={version}"></script>' for module in modules)
           source = source.replace('</body>', f'{tags}\n</body>', 1)
 
@@ -186,9 +187,6 @@ jobs:
               componentes_path.write_text(componentes_source, encoding='utf-8')
           PY
 
-          # Replicamos la preparacion de sesion que utilizaba produccion. El
-          # _common.php migrado ya contiene la autenticacion correcta del Portal,
-          # por lo que se conserva exactamente despues de preparar el resto.
           cp _deploy/api/solicitud-venta/_common.php /tmp/solicitud-common-session.php
           (
             cd _deploy
@@ -198,6 +196,8 @@ jobs:
 
           grep -q '__solicitudComponentesModuloActivo' _deploy/solicitud-venta/componentes.js
           grep -q '__solicitudFirmaRemotaPreflightActivo' _deploy/solicitud-venta/firma-remota-fix.js
+          grep -q '__solicitudFinanciamientoIntegracionActiva' _deploy/solicitud-venta/financiamiento-integracion.js
+          grep -q 'CORRIDA_FINANCIERA' _deploy/api/solicitud-venta/archivos.php
           grep -q 'VALIDAR_ENDPOINT' _deploy/solicitud-venta/correccion-validar-fix.js
           grep -q 'btnSolicitudInicio' _deploy/solicitud-venta/index.html
           grep -q 'referenciaSolicitada' _deploy/solicitud-venta/persistencia.js
