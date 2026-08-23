@@ -1,5 +1,6 @@
 (() => {
   const API = '/api/solicitud-venta/vobo.php';
+  const API_EXPEDIENTE_FINAL = '/api/solicitud-venta/notificar-expediente-final.php';
   const btnAprobar = document.getElementById('btnAprobarVobo');
   const btnCorreccion = document.getElementById('btnSolicitarCorreccion');
   const correctionPanel = document.getElementById('correctionPanel');
@@ -28,6 +29,36 @@
     try {
       const data = await llamarApi({ accion: 'aprobar', folio });
       document.getElementById('detailStatus').textContent = data.estatus || 'APROBADA';
+
+      const esCobranza = String(data.etapa || '').trim().toLowerCase() === 'cobranza';
+      const quedoAprobada = String(data.estatus || '').trim().toUpperCase() === 'APROBADA';
+
+      if (esCobranza && quedoAprobada) {
+        mostrarMensaje(
+          `Vo.Bo. de Cobranza aprobado. Generando PDF final y enviando el expediente de ${folio}...`
+        );
+
+        try {
+          const envio = await notificarExpedienteFinal(folio);
+          const detalle = envio.alreadySent
+            ? 'El expediente final ya había sido enviado anteriormente; no se duplicó el correo.'
+            : `Expediente final enviado correctamente${envio.archivos ? ` con ${envio.archivos} archivo(s) adjunto(s)` : ''}${envio.partes ? ` en ${envio.partes} correo(s)` : ''}.`;
+
+          mostrarMensaje(
+            `${data.message || `La solicitud ${folio} quedó APROBADA.`} ${detalle}`,
+            'ok'
+          );
+          setTimeout(() => window.location.reload(), 1800);
+          return;
+        } catch (mailError) {
+          mostrarMensaje(
+            `${data.message || `La solicitud ${folio} quedó APROBADA.`} Sin embargo, no fue posible enviar el expediente final: ${mailError.message || mailError}. La aprobación sí quedó guardada; no vuelvas a aprobar la solicitud.`,
+            'error'
+          );
+          return;
+        }
+      }
+
       mostrarMensaje(data.message || `Vo.Bo. de ${folio} aprobado correctamente.`, 'ok');
       setTimeout(() => window.location.reload(), 900);
     } catch (error) {
@@ -92,6 +123,20 @@
       cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.ok) {
+      throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    }
+    return data;
+  }
+
+  async function notificarExpedienteFinal(folio) {
+    const response = await fetch(API_EXPEDIENTE_FINAL, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folio })
     });
     const data = await response.json().catch(() => null);
     if (!response.ok || !data?.ok) {
