@@ -58,7 +58,7 @@ $approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
         <a href="/" class="secondary-link">Regresar al portal</a>
         <details class="account-menu">
           <summary class="account-trigger" aria-label="Abrir menu de usuario" title="<?= $name ?>">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4 1.79-4 4 1.79 4 4 4Zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4Z"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
           </summary>
           <div class="account-menu-panel">
             <div class="account-menu-info"><strong><?= $name ?></strong><span><?= $email ?></span></div>
