@@ -54,7 +54,7 @@ if (!preg_match('/^SV-(\d{4})-(\d{6,})$/', $folio, $folioMatch)) {
 
 $tiposPermitidos = [
     'ID_TITULAR', 'ID_SUSTITUTO', 'COMPROBANTE_DOMICILIO', 'COMPROBANTE_PAGO',
-    'OTRO', 'FIRMA_CLIENTE', 'FIRMA_VENDEDOR'
+    'OTRO', 'FIRMA_CLIENTE', 'FIRMA_VENDEDOR', 'CORRIDA_FINANCIERA'
 ];
 if (!in_array($tipoDocumento, $tiposPermitidos, true)) {
     responderError(400, 'INVALID_DOCUMENT_TYPE', 'El tipo de documento no esta permitido.');
@@ -91,6 +91,9 @@ $mimePermitidos = [
 if (!isset($mimePermitidos[$mime])) {
     responderError(400, 'FILE_TYPE', 'Solo se permiten archivos JPG, PNG, WEBP o PDF.');
 }
+if ($tipoDocumento === 'CORRIDA_FINANCIERA' && $mime !== 'application/pdf') {
+    responderError(400, 'FINANCING_PDF_REQUIRED', 'La corrida financiera debe guardarse como archivo PDF.');
+}
 
 $itemId = (string) ((int) ltrim($folioMatch[2], '0'));
 if ($itemId === '0') {
@@ -110,6 +113,9 @@ try {
 
     if (str_starts_with($tipoDocumento, 'FIRMA_')) {
         $nombreFinal = $tipoDocumento . '.png';
+    } elseif ($tipoDocumento === 'CORRIDA_FINANCIERA') {
+        // Nombre determinista: una nueva corrida sustituye la anterior del mismo folio.
+        $nombreFinal = 'CORRIDA_FINANCIERA_' . $folio . '.pdf';
     } else {
         $nombreFinal = $tipoDocumento . '_' . gmdate('Ymd_His') . '_' . substr(bin2hex(random_bytes(3)), 0, 6) . '_' . $baseOriginal . '.' . $extension;
     }
