@@ -6,6 +6,8 @@ declare(strict_types=1);
  * Consolida las identificaciones del expediente exclusivamente para el correo final.
  * Los archivos originales de SharePoint no se modifican ni eliminan.
  *
+ * Cada identificacion consolidada usa una sola pagina: FRENTE arriba y REVERSO abajo.
+ *
  * @param array<int,array<string,mixed>> $adjuntos
  * @return array<int,array<string,mixed>>
  */
@@ -101,10 +103,10 @@ function nefCrearPdfIdentificacionDosCaras(
     string $reversoNombre,
     string $reversoContenido
 ): string {
-    $imagenes = [
-        ['lado' => 'FRENTE', 'name' => $frenteNombre, 'data' => $frenteContenido],
-        ['lado' => 'REVERSO', 'name' => $reversoNombre, 'data' => $reversoContenido],
-    ];
+    $frente = nefImagenParaPdf($frenteContenido, $frenteNombre);
+    $reverso = nefImagenParaPdf($reversoContenido, $reversoNombre);
+    $logoContenido = nefCargarLogoJdjp();
+    $logo = $logoContenido !== '' ? nefImagenParaPdf($logoContenido, 'logo-jdjp.jpg') : null;
 
     $objects = [];
     $objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
@@ -112,55 +114,90 @@ function nefCrearPdfIdentificacionDosCaras(
     $objects[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
 
     $nextId = 5;
-    $kids = [];
-    foreach ($imagenes as $indice => $imagen) {
-        $normalizada = nefImagenParaPdf((string) $imagen['data'], (string) $imagen['name']);
-        $imageId = $nextId++;
-        $contentId = $nextId++;
-        $pageId = $nextId++;
-        $kids[] = $pageId . ' 0 R';
+    $frenteId = $nextId++;
+    $reversoId = $nextId++;
+    $logoId = null;
+    if (is_array($logo)) $logoId = $nextId++;
+    $contentId = $nextId++;
+    $pageId = $nextId++;
 
-        $colorSpace = (string) $normalizada['colorSpace'];
-        $decode = (string) ($normalizada['decode'] ?? '');
-        $filter = (string) $normalizada['filter'];
-        $imageData = (string) $normalizada['data'];
-        $objects[$imageId] = '<< /Type /XObject /Subtype /Image /Width ' . (int) $normalizada['width']
-            . ' /Height ' . (int) $normalizada['height']
-            . ' /ColorSpace /' . $colorSpace
-            . ' /BitsPerComponent 8 /Filter /' . $filter
-            . ($decode !== '' ? ' /Decode ' . $decode : '')
-            . ' /Length ' . strlen($imageData) . ">>\nstream\n" . $imageData . "\nendstream";
+    $objects[$frenteId] = nefPdfObjetoImagen($frente);
+    $objects[$reversoId] = nefPdfObjetoImagen($reverso);
+    if ($logoId !== null && is_array($logo)) $objects[$logoId] = nefPdfObjetoImagen($logo);
 
-        $pageW = 595.28;
-        $pageH = 841.89;
-        $boxW = 515.0;
-        $boxH = 650.0;
-        $iw = max(1, (int) $normalizada['width']);
-        $ih = max(1, (int) $normalizada['height']);
-        $scale = min($boxW / $iw, $boxH / $ih);
-        $drawW = $iw * $scale;
-        $drawH = $ih * $scale;
-        $x = ($pageW - $drawW) / 2.0;
-        $y = 74.0 + (($boxH - $drawH) / 2.0);
+    $pageW = 595.28;
+    $pageH = 841.89;
+    $marginX = 36.0;
+    $boxW = $pageW - (2 * $marginX);
+    $boxH = 302.0;
+    $frontBoxY = 420.0;
+    $backBoxY = 78.0;
 
-        $safeTitle = nefPdfEscapeAscii($titulo);
-        $safeSide = nefPdfEscapeAscii((string) $imagen['lado'] . '  |  ' . $folio);
-        $content = "0.12 0.12 0.12 rg\n"
-            . "BT /F1 15 Tf 1 0 0 1 40 804 Tm (" . $safeTitle . ") Tj ET\n"
-            . "BT /F2 10 Tf 1 0 0 1 40 783 Tm (" . $safeSide . ") Tj ET\n"
-            . "0.72 0.72 0.72 RG 0.7 w 36 58 523 700 re S\n"
-            . sprintf("q %.2F 0 0 %.2F %.2F %.2F cm /Im%d Do Q\n", $drawW, $drawH, $x, $y, $indice + 1)
-            . "BT /F2 7 Tf 0.38 0.38 0.38 rg 1 0 0 1 40 34 Tm (Documento consolidado desde el expediente digital.) Tj ET\n";
+    [$frontW, $frontH, $frontX, $frontY] = nefPdfFitEnCaja($frente, $marginX + 10.0, $frontBoxY + 10.0, $boxW - 20.0, $boxH - 28.0);
+    [$backW, $backH, $backX, $backY] = nefPdfFitEnCaja($reverso, $marginX + 10.0, $backBoxY + 10.0, $boxW - 20.0, $boxH - 28.0);
 
-        $objects[$contentId] = '<< /Length ' . strlen($content) . ">>\nstream\n" . $content . "\nendstream";
-        $objects[$pageId] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] '
-            . '/Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject << /Im' . ($indice + 1) . ' ' . $imageId . ' 0 R >> >> '
-            . '/Contents ' . $contentId . ' 0 R >>';
+    $safeTitle = nefPdfEscapeAscii($titulo);
+    $safeFolio = nefPdfEscapeAscii($folio);
+    $content = "0.12 0.12 0.12 rg\n";
+
+    if ($logoId !== null && is_array($logo)) {
+        [$logoW, $logoH, $logoX, $logoY] = nefPdfFitEnCaja($logo, 38.0, 755.0, 82.0, 58.0);
+        $content .= sprintf("q %.2F 0 0 %.2F %.2F %.2F cm /Logo Do Q\n", $logoW, $logoH, $logoX, $logoY);
     }
 
-    $objects[2] = '<< /Type /Pages /Kids [' . implode(' ', $kids) . '] /Count ' . count($kids) . ' >>';
-    ksort($objects);
+    $content .= "BT /F1 15 Tf 1 0 0 1 132 802 Tm (" . $safeTitle . ") Tj ET\n"
+        . "BT /F2 9 Tf 1 0 0 1 132 784 Tm (Jardines de Juan Pablo  |  " . $safeFolio . ") Tj ET\n"
+        . "0.76 0.76 0.76 RG 0.7 w " . $marginX . ' ' . $frontBoxY . ' ' . $boxW . ' ' . $boxH . " re S\n"
+        . "BT /F1 10 Tf 1 0 0 1 46 " . ($frontBoxY + $boxH - 17.0) . " Tm (FRENTE) Tj ET\n"
+        . sprintf("q %.2F 0 0 %.2F %.2F %.2F cm /ImFront Do Q\n", $frontW, $frontH, $frontX, $frontY)
+        . "0.76 0.76 0.76 RG 0.7 w " . $marginX . ' ' . $backBoxY . ' ' . $boxW . ' ' . $boxH . " re S\n"
+        . "BT /F1 10 Tf 1 0 0 1 46 " . ($backBoxY + $boxH - 17.0) . " Tm (REVERSO) Tj ET\n"
+        . sprintf("q %.2F 0 0 %.2F %.2F %.2F cm /ImBack Do Q\n", $backW, $backH, $backX, $backY)
+        . "BT /F2 7 Tf 0.38 0.38 0.38 rg 1 0 0 1 40 35 Tm (Documento consolidado desde el expediente digital.) Tj ET\n";
 
+    $objects[$contentId] = '<< /Length ' . strlen($content) . ">>\nstream\n" . $content . "\nendstream";
+    $xObjects = '/ImFront ' . $frenteId . ' 0 R /ImBack ' . $reversoId . ' 0 R';
+    if ($logoId !== null) $xObjects .= ' /Logo ' . $logoId . ' 0 R';
+    $objects[$pageId] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] '
+        . '/Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject << ' . $xObjects . ' >> >> '
+        . '/Contents ' . $contentId . ' 0 R >>';
+    $objects[2] = '<< /Type /Pages /Kids [' . $pageId . ' 0 R] /Count 1 >>';
+
+    ksort($objects);
+    return nefPdfConstruirObjetos($objects);
+}
+
+/** @param array{width:int,height:int,colorSpace:string,filter:string,decode:string,data:string} $imagen */
+function nefPdfObjetoImagen(array $imagen): string
+{
+    $data = (string) $imagen['data'];
+    $decode = trim((string) ($imagen['decode'] ?? ''));
+    return '<< /Type /XObject /Subtype /Image /Width ' . (int) $imagen['width']
+        . ' /Height ' . (int) $imagen['height']
+        . ' /ColorSpace /' . (string) $imagen['colorSpace']
+        . ' /BitsPerComponent 8 /Filter /' . (string) $imagen['filter']
+        . ($decode !== '' ? ' /Decode ' . $decode : '')
+        . ' /Length ' . strlen($data) . ">>\nstream\n" . $data . "\nendstream";
+}
+
+/**
+ * @param array{width:int,height:int,colorSpace:string,filter:string,decode:string,data:string} $imagen
+ * @return array{0:float,1:float,2:float,3:float}
+ */
+function nefPdfFitEnCaja(array $imagen, float $x, float $y, float $w, float $h): array
+{
+    $iw = max(1, (int) $imagen['width']);
+    $ih = max(1, (int) $imagen['height']);
+    $scale = min($w / $iw, $h / $ih);
+    $drawW = $iw * $scale;
+    $drawH = $ih * $scale;
+    return [$drawW, $drawH, $x + (($w - $drawW) / 2.0), $y + (($h - $drawH) / 2.0)];
+}
+
+/** @param array<int,string> $objects */
+function nefPdfConstruirObjetos(array $objects): string
+{
+    ksort($objects);
     $pdf = "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n";
     $offsets = [0];
     $maxId = max(array_keys($objects));
@@ -173,10 +210,27 @@ function nefCrearPdfIdentificacionDosCaras(
     $xref = strlen($pdf);
     $pdf .= "xref\n0 " . ($maxId + 1) . "\n0000000000 65535 f \n";
     for ($id = 1; $id <= $maxId; $id++) {
-        $pdf .= sprintf('%010d 00000 n ', $offsets[$id] ?? 0) . "\n";
+        if (isset($objects[$id])) $pdf .= sprintf('%010d 00000 n ', $offsets[$id] ?? 0) . "\n";
+        else $pdf .= "0000000000 65535 f \n";
     }
     $pdf .= "trailer\n<< /Size " . ($maxId + 1) . " /Root 1 0 R >>\nstartxref\n" . $xref . "\n%%EOF";
     return $pdf;
+}
+
+function nefCargarLogoJdjp(): string
+{
+    $candidates = [];
+    $documentRoot = rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
+    if ($documentRoot !== '') $candidates[] = $documentRoot . '/financiamiento/assets/logo.jpg';
+    $candidates[] = dirname(__DIR__, 2) . '/financiamiento/assets/logo.jpg';
+    $candidates[] = '/home/juanpab1/public_html/portal.juanpablo.com.mx/financiamiento/assets/logo.jpg';
+
+    foreach (array_unique($candidates) as $path) {
+        if (!is_file($path) || !is_readable($path)) continue;
+        $data = @file_get_contents($path);
+        if (is_string($data) && $data !== '') return $data;
+    }
+    return '';
 }
 
 /** @return array{width:int,height:int,colorSpace:string,filter:string,decode:string,data:string} */
