@@ -61,6 +61,8 @@ jobs:
           test -s api/solicitud-venta/validar.php
           test -s api/solicitud-venta/vobo.php
           test -s api/solicitud-venta/firma-remota-publica.php
+          test -s api/solicitud-venta/pdf-branding.php
+          test -s api/solicitud-venta/identificaciones-pdf.php
           test -s firma/index.html
           test -s firma/firma.js
           test -s firma/styles.css
@@ -165,7 +167,7 @@ jobs:
           if '</body>' not in source:
               raise RuntimeError('No se encontro </body> para insertar los modulos de Solicitud de Venta.')
 
-          version = '20260822-financiamiento-3'
+          version = '20260823-fin-source-pdf-1'
           tags = '\n'.join(f'  <script src="{module}?v={version}"></script>' for module in modules)
           source = source.replace('</body>', f'{tags}\n</body>', 1)
 
@@ -187,6 +189,33 @@ jobs:
                   raise RuntimeError('No se encontro el inicio esperado de componentes.js.')
               componentes_source = componentes_source.replace(marker, replacement, 1)
               componentes_path.write_text(componentes_source, encoding='utf-8')
+
+          # Branding del PDF final: el motor base dibuja primero la cabecera de texto.
+          # Desplazamos esos textos y agregamos el logo a cada pagina del layout V3.
+          lib_path = Path('_deploy/api/solicitud-venta/pdf-final-lib.php')
+          lib_source = lib_path.read_text(encoding='utf-8')
+          lib_source = lib_source.replace(
+              "$this->text(self::MARGIN + 10.0, 41.0, 'JARDINES DE JUAN PABLO'",
+              "$this->text(self::MARGIN + 90.0, 41.0, 'JARDINES DE JUAN PABLO'"
+          )
+          lib_source = lib_source.replace(
+              "$this->text(self::MARGIN + 10.0, 58.0, $back ? 'SOLICITUD DE VENTA - REVERSO' : 'SOLICITUD DE VENTA'",
+              "$this->text(self::MARGIN + 90.0, 58.0, $back ? 'SOLICITUD DE VENTA - REVERSO' : 'SOLICITUD DE VENTA'"
+          )
+          lib_path.write_text(lib_source, encoding='utf-8')
+
+          layout_path = Path('_deploy/api/solicitud-venta/pdf-final-layout-v3.php')
+          layout_source = layout_path.read_text(encoding='utf-8')
+          marker = "$pdf = new SvPdfDocumento($folio);"
+          if marker not in layout_source:
+              raise RuntimeError('No se encontro el constructor del PDF V3 para insertar branding.')
+          layout_source = layout_source.replace(marker, marker + "\n    svPdfAgregarLogoJdjp($pdf);", 1)
+          layout_source = re.sub(
+              r'(?m)^(\s*)svPdfV3NuevaPagina\(\$pdf\);\s*$',
+              lambda m: f"{m.group(1)}svPdfV3NuevaPagina($pdf);\n{m.group(1)}svPdfAgregarLogoJdjp($pdf);",
+              layout_source,
+          )
+          layout_path.write_text(layout_source, encoding='utf-8')
           PY
 
           cp _deploy/api/solicitud-venta/_common.php /tmp/solicitud-common-session.php
@@ -207,6 +236,8 @@ jobs:
           grep -Eq 'reconstruirEstado(Legado|DesdeFields)' _deploy/api/solicitud-venta/estado-borrador.php
           grep -q 'PORTAL_SESSION' _deploy/api/solicitud-venta/_common.php
           grep -q 'session_name' _deploy/api/solicitud-venta/_common.php
+          grep -q 'svPdfAgregarLogoJdjp' _deploy/api/solicitud-venta/pdf-final-layout-v3.php
+          grep -q '/Count 1' _deploy/api/solicitud-venta/identificaciones-pdf.php
 
           if grep -qi 'msal-browser' _deploy/solicitud-venta/index.html; then
             echo 'ERROR: la interfaz aun intenta cargar MSAL independiente.'
