@@ -165,7 +165,7 @@ jobs:
           if '</body>' not in source:
               raise RuntimeError('No se encontro </body> para insertar los modulos de Solicitud de Venta.')
 
-          version = '20260822-financiamiento-2'
+          version = '20260822-financiamiento-3'
           tags = '\n'.join(f'  <script src="{module}?v={version}"></script>' for module in modules)
           source = source.replace('</body>', f'{tags}\n</body>', 1)
 
