@@ -11,15 +11,35 @@
   let ventanaFinanciamiento = null;
   let aplicando = false;
 
-  const idsQueInvalidan = ['precioTotal', 'enganche', 'mensualidades', 'interesFinanciamiento', 'fechaPrimerVencimiento'];
+  // Solo los datos comerciales de la venta pueden invalidar una corrida.
+  // Las condiciones financieras de la parte inferior son salida de Financiamiento,
+  // nunca entrada manual de Solicitud de Venta.
+  const idsQueInvalidan = ['precioTotal', 'enganche'];
+  const camposSoloFinanciamiento = [
+    'mensualidades',
+    'importeMensual',
+    'diaPago',
+    'fechaPrimerVencimiento',
+    'precioLista',
+    'bonificacion',
+    'montoFinanciar',
+    'interesFinanciamiento',
+    'periodoPagos',
+    'pagosAnuales',
+    'totalPagar'
+  ];
   const camposExactos = {
-    importeMensual: 'financiamientoImporteMensualBase',
-    montoFinanciar: 'financiamientoMontoFinanciarBase',
-    totalPagar: 'financiamientoTotalPagarBase',
-    interesFinanciamiento: 'financiamientoTasaBase',
     mensualidades: 'financiamientoMesesBase',
+    importeMensual: 'financiamientoImporteMensualBase',
+    diaPago: 'financiamientoDiaPagoBase',
     fechaPrimerVencimiento: 'financiamientoFechaBase',
-    diaPago: 'financiamientoDiaPagoBase'
+    precioLista: 'financiamientoPrecioListaBase',
+    bonificacion: 'financiamientoBonificacionBase',
+    montoFinanciar: 'financiamientoMontoFinanciarBase',
+    interesFinanciamiento: 'financiamientoTasaBase',
+    periodoPagos: 'financiamientoPeriodoPagosBase',
+    pagosAnuales: 'financiamientoPagosAnualesBase',
+    totalPagar: 'financiamientoTotalPagarBase'
   };
 
   function iniciar() {
@@ -33,10 +53,15 @@
     asegurarOcultos(form);
     instalarEstilos();
     instalarTarjeta(contenedor);
+    bloquearCamposFinanciamiento();
 
     document.getElementById('btnAbrirFinanciamiento')?.addEventListener('click', abrirFinanciamiento);
     document.getElementById('formaPago')?.addEventListener('change', () => {
-      if (valor('formaPago') !== 'CREDITO') invalidar('La forma de pago cambió.');
+      if (valor('formaPago') !== 'CREDITO') {
+        invalidar('La forma de pago cambió.');
+      } else if (estadoMarcador() !== 'CALCULADO') {
+        limpiarCamposFinanciamiento();
+      }
       actualizarEstadoUI();
     });
 
@@ -46,7 +71,11 @@
       const evento = control.tagName === 'SELECT' ? 'change' : 'input';
       control.addEventListener(evento, (ev) => {
         if (!ev.isTrusted) return;
-        if (estadoMarcador() === 'CALCULADO') invalidar('Las condiciones cambiaron. Vuelve a calcular la corrida financiera.');
+        if (estadoMarcador() === 'CALCULADO') {
+          invalidar('El precio total o el enganche cambiaron. Vuelve a calcular la corrida financiera.');
+        } else if (valor('formaPago') === 'CREDITO') {
+          limpiarCamposFinanciamiento();
+        }
       });
     });
 
@@ -61,7 +90,12 @@
     window.addEventListener('message', recibirMensaje);
 
     [0, 300, 800, 1600, 3000].forEach((delay) => window.setTimeout(() => {
-      restaurarValoresExactos();
+      bloquearCamposFinanciamiento();
+      if (valor('formaPago') === 'CREDITO' && estadoMarcador() !== 'CALCULADO') {
+        limpiarCamposFinanciamiento();
+      } else {
+        restaurarValoresExactos();
+      }
       actualizarEstadoUI();
     }, delay));
   }
@@ -79,7 +113,11 @@
       ['financiamientoTasaBase', ''],
       ['financiamientoMesesBase', ''],
       ['financiamientoFechaBase', ''],
-      ['financiamientoDiaPagoBase', '']
+      ['financiamientoDiaPagoBase', ''],
+      ['financiamientoPrecioListaBase', ''],
+      ['financiamientoBonificacionBase', ''],
+      ['financiamientoPeriodoPagosBase', ''],
+      ['financiamientoPagosAnualesBase', '']
     ].forEach(([id, value]) => {
       if (document.getElementById(id)) return;
       const input = document.createElement('input');
@@ -109,6 +147,7 @@
       .fin-integracion-summary div{background:#fff;border:1px solid #e1e8ee;border-radius:10px;padding:10px}
       .fin-integracion-summary span{display:block;font-size:11px;color:#687683;margin-bottom:3px}
       .fin-integracion-summary strong{font-size:14px;color:#1d2a34}
+      #financiamientoFields .fin-source-field{background:#f7f7f5!important;color:#303030!important;cursor:not-allowed}
       @media(max-width:850px){.fin-integracion-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
     `;
     document.head.appendChild(style);
@@ -123,7 +162,7 @@
       <div class="fin-integracion-head">
         <div>
           <h4>Corrida financiera</h4>
-          <p>Calcula las condiciones en la herramienta de Financiamiento. Al aplicar la corrida, sus datos y el PDF se guardarán dentro del expediente de esta solicitud.</p>
+          <p>Las condiciones de crédito se capturan únicamente en Financiamiento. Al aplicar la corrida, esta sección se llena automáticamente con los mismos datos y el PDF se guarda en el expediente.</p>
         </div>
         <div class="fin-integracion-actions"><button id="btnAbrirFinanciamiento" type="button" class="fin-integracion-btn">Calcular financiamiento →</button></div>
       </div>
@@ -133,16 +172,38 @@
     contenedor.insertBefore(card, contenedor.firstChild);
   }
 
+  function bloquearCamposFinanciamiento() {
+    camposSoloFinanciamiento.forEach((id) => {
+      const control = document.getElementById(id);
+      if (!control) return;
+      control.classList.add('fin-source-field');
+      control.setAttribute('aria-readonly', 'true');
+      control.title = 'Este dato proviene de la corrida de Financiamiento.';
+      if (control instanceof HTMLSelectElement) {
+        control.disabled = true;
+      } else if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) {
+        control.readOnly = true;
+      }
+    });
+  }
+
+  function limpiarCamposFinanciamiento() {
+    if (estadoMarcador() === 'CALCULADO') return;
+    camposSoloFinanciamiento.forEach((id) => setValor(id, ''));
+    Object.values(camposExactos).forEach((id) => setValor(id, ''));
+    const conformidad = document.getElementById('conformidadFinanciamiento');
+    if (conformidad instanceof HTMLInputElement) conformidad.checked = false;
+  }
+
   function construirContexto(folio) {
+    // Solicitud de Venta solo entrega a Financiamiento los datos comerciales base.
+    // Tasa, plazo, fecha, mensualidad y demas condiciones se capturan y calculan alla.
     return {
       folio,
       cliente: nombreCliente(),
       producto: productoSolicitud(),
       total: Math.max(0, numero('precioTotal')),
-      enganche: Math.max(0, numero('enganche')),
-      tasaAnualPct: Math.max(0, numero('interesFinanciamiento')),
-      meses: Math.max(0, Math.trunc(numero('mensualidades'))),
-      primerPago: valor('fechaPrimerVencimiento')
+      enganche: Math.max(0, numero('enganche'))
     };
   }
 
@@ -154,9 +215,6 @@
     params.set('enganche', String(data.enganche));
     if (data.cliente) params.set('cliente', data.cliente);
     if (data.producto) params.set('producto', data.producto);
-    if (data.tasaAnualPct > 0) params.set('tasa', String(data.tasaAnualPct));
-    if (data.meses > 0) params.set('meses', String(data.meses));
-    if (/^\d{4}-\d{2}-\d{2}$/.test(data.primerPago || '')) params.set('primerPago', data.primerPago);
     return `${ORIGIN}/financiamiento/?${params.toString()}`;
   }
 
@@ -196,9 +254,9 @@
       const url = construirUrlFinanciamiento(contexto);
       ventanaFinanciamiento = popup;
 
-      console.info('[Solicitud Venta] Enviando campos a Financiamiento:', contexto);
+      console.info('[Solicitud Venta] Enviando datos comerciales a Financiamiento:', contexto);
       popup.location.replace(url);
-      estadoTexto(`Abriendo Financiamiento para ${folio}.`, 'warn');
+      estadoTexto(`Abriendo Financiamiento para ${folio}. Captura ahí las condiciones de crédito.`, 'warn');
     } catch (error) {
       try { popup.close(); } catch (_) {}
       mostrarMensajeLocal(`No fue posible abrir Financiamiento: ${error.message || error}`, 'error');
@@ -251,6 +309,7 @@
       if (typeof window.guardarBorrador !== 'function') throw new Error('No fue posible guardar los datos financieros en el borrador.');
       await window.guardarBorrador();
       restaurarValoresExactos();
+      bloquearCamposFinanciamiento();
 
       if (!estaVigente()) throw new Error('Los datos se guardaron, pero la corrida no quedó marcada como vigente.');
 
@@ -269,7 +328,13 @@
     const meses = Math.max(1, Math.trunc(Number(data.meses || 0)));
     const tasa = Number(data.tasaAnualPct || 0);
     const primerPago = String(data.primerPago || '').slice(0, 10);
-    const dia = primerPago ? Number(primerPago.split('-')[2]) : 0;
+    const diaRecibido = Math.trunc(Number(data.diaPago || 0));
+    const diaFecha = primerPago ? Number(primerPago.split('-')[2]) : 0;
+    const dia = diaRecibido >= 1 && diaRecibido <= 31 ? diaRecibido : diaFecha;
+    const precioLista = Number(data.precioLista ?? total);
+    const bonificacion = Number(data.bonificacion ?? 0);
+    const periodoPagos = String(data.periodoPagos || 'MENSUAL').trim().toUpperCase();
+    const pagosAnuales = Math.max(1, Math.trunc(Number(data.pagosAnuales || 12)));
 
     const valores = {
       precioTotal: total.toFixed(2),
@@ -277,27 +342,36 @@
       saldo: Math.max(0, total - enganche).toFixed(2),
       mensualidades: String(meses),
       importeMensual: Number(data.mensualidad || 0).toFixed(2),
+      diaPago: dia >= 1 && dia <= 31 ? String(dia) : '',
+      fechaPrimerVencimiento: primerPago,
+      precioLista: Number.isFinite(precioLista) ? precioLista.toFixed(2) : total.toFixed(2),
+      bonificacion: Number.isFinite(bonificacion) ? bonificacion.toFixed(2) : '0.00',
       montoFinanciar: Number(data.montoFinanciar || 0).toFixed(2),
       interesFinanciamiento: tasa.toFixed(2),
-      periodoPagos: 'MENSUAL',
-      pagosAnuales: '12',
-      totalPagar: Number(data.totalPagos || 0).toFixed(2),
-      fechaPrimerVencimiento: primerPago,
-      diaPago: dia >= 1 && dia <= 31 ? String(dia) : ''
+      periodoPagos: periodoPagos || 'MENSUAL',
+      pagosAnuales: String(pagosAnuales),
+      totalPagar: Number(data.totalPagos || 0).toFixed(2)
     };
 
     Object.entries(valores).forEach(([id, value]) => setValor(id, value));
-    if (!valor('precioLista')) setValor('precioLista', total.toFixed(2));
 
     setValor('financiamientoTotalBase', valores.precioTotal);
     setValor('financiamientoEngancheBase', valores.enganche);
-    setValor('financiamientoImporteMensualBase', valores.importeMensual);
-    setValor('financiamientoMontoFinanciarBase', valores.montoFinanciar);
-    setValor('financiamientoTotalPagarBase', valores.totalPagar);
-    setValor('financiamientoTasaBase', valores.interesFinanciamiento);
     setValor('financiamientoMesesBase', valores.mensualidades);
-    setValor('financiamientoFechaBase', valores.fechaPrimerVencimiento);
+    setValor('financiamientoImporteMensualBase', valores.importeMensual);
     setValor('financiamientoDiaPagoBase', valores.diaPago);
+    setValor('financiamientoFechaBase', valores.fechaPrimerVencimiento);
+    setValor('financiamientoPrecioListaBase', valores.precioLista);
+    setValor('financiamientoBonificacionBase', valores.bonificacion);
+    setValor('financiamientoMontoFinanciarBase', valores.montoFinanciar);
+    setValor('financiamientoTasaBase', valores.interesFinanciamiento);
+    setValor('financiamientoPeriodoPagosBase', valores.periodoPagos);
+    setValor('financiamientoPagosAnualesBase', valores.pagosAnuales);
+    setValor('financiamientoTotalPagarBase', valores.totalPagar);
+
+    // Una corrida nueva requiere que el cliente vuelva a manifestar conformidad.
+    const conformidad = document.getElementById('conformidadFinanciamiento');
+    if (conformidad instanceof HTMLInputElement) conformidad.checked = false;
   }
 
   function restaurarValoresExactos() {
@@ -335,14 +409,22 @@
   }
 
   function invalidar(motivo) {
-    if (estadoMarcador() === '') return;
+    if (estadoMarcador() === '' && valor('financiamientoPdfNombre') === '') {
+      if (valor('formaPago') === 'CREDITO') limpiarCamposFinanciamiento();
+      return;
+    }
     setValor('financiamientoIntegrado', 'PENDIENTE');
     setValor('financiamientoPdfNombre', '');
     setValor('financiamientoAplicadoUtc', '');
+    setValor('financiamientoTotalBase', '');
+    setValor('financiamientoEngancheBase', '');
+    Object.values(camposExactos).forEach((id) => setValor(id, ''));
+    limpiarCamposFinanciamiento();
     actualizarEstadoUI(motivo);
   }
 
   function actualizarEstadoUI(motivo = '') {
+    bloquearCamposFinanciamiento();
     restaurarValoresExactos();
     const status = document.getElementById('financiamientoIntegracionStatus');
     const summary = document.getElementById('financiamientoIntegracionSummary');
@@ -357,14 +439,14 @@
 
     if (estaVigente()) {
       status.className = 'fin-integracion-status ok';
-      status.textContent = '✓ Corrida financiera calculada, aplicada y guardada en el expediente.';
+      status.textContent = '✓ Corrida financiera calculada, aplicada y guardada en el expediente. Los campos inferiores provienen de Financiamiento.';
       summary.innerHTML = `<div><span>Monto financiado</span><strong>${formatoMoneda(numero('montoFinanciar'))}</strong></div><div><span>Plazo</span><strong>${Math.trunc(numero('mensualidades'))} meses</strong></div><div><span>Tasa anual</span><strong>${numero('interesFinanciamiento').toFixed(2)}%</strong></div><div><span>Mensualidad</span><strong>${formatoMoneda(numero('importeMensual'))}</strong></div>`;
       summary.hidden = false;
       return;
     }
 
     status.className = 'fin-integracion-status warn';
-    status.textContent = motivo || 'La venta es a crédito y todavía requiere una corrida calculada con la herramienta de Financiamiento.';
+    status.textContent = motivo || 'La venta es a crédito. Captura las condiciones únicamente en Financiamiento y aplica la corrida para llenar esta sección.';
     summary.hidden = true;
   }
 
@@ -459,7 +541,8 @@
   window.solicitudFinanciamientoIntegracion = {
     estaVigente,
     actualizarEstado: actualizarEstadoUI,
-    abrir: abrirFinanciamiento
+    abrir: abrirFinanciamiento,
+    restaurarValoresExactos
   };
 
   if (document.readyState === 'loading') {
