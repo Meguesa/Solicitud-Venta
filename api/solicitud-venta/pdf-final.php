@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
 require_once __DIR__ . '/_common.php';
 require_once __DIR__ . '/pdf-final-lib.php';
+require_once __DIR__ . '/pdf-branding.php';
 require_once __DIR__ . '/pdf-final-layout.php';
 require_once __DIR__ . '/pdf-final-layout-v2.php';
 require_once __DIR__ . '/pdf-final-layout-v3.php';
