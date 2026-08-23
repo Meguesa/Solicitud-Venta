@@ -54,6 +54,89 @@ $uiCleanupStyle = <<<'HTML'
 </style>
 HTML;
 
+// En una solicitud presencial el boton final podia cambiar el estatus a Vo.Bo.
+// sin volver a guardar los ultimos cambios hechos en pantalla cuando el folio ya
+// existia. Esto afectaba, entre otros campos, la conformidad del financiamiento.
+// Interceptamos el primer submit, guardamos el estado vigente y despues dejamos
+// continuar el flujo normal de validacion. Firma remota y correcciones ya tienen
+// su propio guardado previo y se excluyen de este puente.
+$saveBeforeSubmitFix = <<<'HTML'
+<script id="solicitudSaveBeforeSubmitFix">
+(() => {
+  let guardando = false;
+  let reenvioAutorizado = false;
+
+  function mostrar(texto, tipo = '') {
+    if (typeof window.mostrarMensaje === 'function') {
+      window.mostrarMensaje(texto, tipo);
+      return;
+    }
+    const mensaje = document.getElementById('formMessage');
+    if (!mensaje) return;
+    mensaje.textContent = texto || '';
+    mensaje.className = `form-message ${tipo}`.trim();
+  }
+
+  function iniciar() {
+    const form = document.getElementById('solicitudForm');
+    if (!form || form.dataset.saveBeforeSubmitFix === '1') return;
+    form.dataset.saveBeforeSubmitFix = '1';
+
+    form.addEventListener('submit', async (event) => {
+      if (reenvioAutorizado) {
+        reenvioAutorizado = false;
+        return;
+      }
+
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('correccion') === '1') return;
+      if (document.getElementById('modalidadFirma')?.value === 'REMOTA') return;
+      if (typeof window.guardarBorrador !== 'function') return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      if (guardando) return;
+      guardando = true;
+
+      const submitter = event.submitter instanceof HTMLElement
+        ? event.submitter
+        : document.getElementById('btnValidate');
+
+      try {
+        mostrar('Guardando los ultimos cambios antes de enviar a Vo.Bo...');
+        await window.guardarBorrador();
+
+        reenvioAutorizado = true;
+        if (typeof form.requestSubmit === 'function') {
+          if (submitter instanceof HTMLButtonElement || submitter instanceof HTMLInputElement) {
+            form.requestSubmit(submitter);
+          } else {
+            form.requestSubmit();
+          }
+        } else {
+          reenvioAutorizado = false;
+          throw new Error('El navegador no permite continuar automaticamente con la validacion.');
+        }
+      } catch (error) {
+        reenvioAutorizado = false;
+        console.error('No fue posible guardar antes de enviar a Vo.Bo.:', error);
+        mostrar(`No fue posible guardar los ultimos cambios antes de enviar a Vo.Bo.: ${error?.message || error}`, 'error');
+      } finally {
+        guardando = false;
+      }
+    }, true);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', iniciar, { once: true });
+  } else {
+    iniciar();
+  }
+})();
+</script>
+HTML;
+
 // El Resumen final del wizard es un clon de las secciones. Si el enlace remoto
 // se genera mientras ese resumen esta visible, el formulario original recibe la
 // URL pero el clon conserva el estado anterior (oculto). Este puente replica la
@@ -162,11 +245,11 @@ HTML;
 if (strpos($source, '</head>') !== false) {
     $source = str_replace(
         '</head>',
-        '  ' . $bootstrapScript . "\n  " . $uiCleanupStyle . "\n  " . $remoteLinkSummaryFix . "\n</head>",
+        '  ' . $bootstrapScript . "\n  " . $uiCleanupStyle . "\n  " . $saveBeforeSubmitFix . "\n  " . $remoteLinkSummaryFix . "\n</head>",
         $source
     );
 } else {
-    $source = $bootstrapScript . $uiCleanupStyle . $remoteLinkSummaryFix . $source;
+    $source = $bootstrapScript . $uiCleanupStyle . $saveBeforeSubmitFix . $remoteLinkSummaryFix . $source;
 }
 
 header('Content-Type: text/html; charset=utf-8');
