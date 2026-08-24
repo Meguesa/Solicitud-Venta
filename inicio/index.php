@@ -19,7 +19,7 @@ $cobranzaVobo = portal_user_can_cobranza_vobo();
   <meta name="theme-color" content="#ffffff">
   <title>Mis Solicitudes | Jardines de Juan Pablo</title>
   <link rel="stylesheet" href="/assets/css/account-menu.css">
-  <link rel="stylesheet" href="./inicio.css?v=20260823-map-header-1">
+  <link rel="stylesheet" href="./inicio.css?v=20260823-map-header-2">
 </head>
 <body>
   <header class="seller-header">
