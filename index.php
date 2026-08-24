@@ -24,6 +24,12 @@ if (!is_string($source) || $source === '') {
     exit('No fue posible cargar la interfaz de Solicitud de Venta.');
 }
 
+$source = str_replace(
+    '<div class="folio-box"><span>Folio</span><strong>PENDIENTE</strong></div>',
+    '<div class="user-box"><button id="btnVolverMisSolicitudes" class="secondary-button" type="button" onclick="window.location.href=\'/solicitud-venta/inicio/\'">Mis solicitudes</button><div class="folio-box"><span>Folio</span><strong>PENDIENTE</strong></div></div>',
+    $source
+);
+
 $source = preg_replace(
     '#\s*<script[^>]+(?:msal-browser|alcdn\.msauth|cdn\.jsdelivr\.net/npm/@azure/msal-browser)[^>]*></script>\s*#i',
     "\n",
