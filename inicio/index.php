@@ -19,15 +19,21 @@ $cobranzaVobo = portal_user_can_cobranza_vobo();
   <meta name="theme-color" content="#ffffff">
   <title>Mis Solicitudes | Jardines de Juan Pablo</title>
   <link rel="stylesheet" href="/assets/css/account-menu.css">
-  <link rel="stylesheet" href="./inicio.css?v=20260823-2">
+  <link rel="stylesheet" href="./inicio.css?v=20260823-map-header-1">
 </head>
 <body>
   <header class="seller-header">
     <div class="seller-shell seller-header-inner">
-      <div class="seller-header-title">
-        <p>Jardines de Juan Pablo</p>
-        <h1>Solicitud de Venta</h1>
+      <div class="seller-header-left">
+        <img class="seller-header-logo" src="/mapa/assets/logo.jpg" alt="Jardines de Juan Pablo">
+        <div class="seller-header-title">
+          <h1>Solicitud de Venta</h1>
+          <p>Portal Interno JdJP · Jardines de Juan Pablo</p>
+        </div>
       </div>
+
+      <div class="seller-header-context">Captura y seguimiento de solicitudes comerciales</div>
+
       <div class="seller-header-actions">
         <a href="/" class="secondary-link">Regresar al portal</a>
         <details class="account-menu">
