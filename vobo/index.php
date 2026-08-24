@@ -48,15 +48,21 @@ $approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
   <meta name="theme-color" content="#ffffff">
   <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?> | Jardines de Juan Pablo</title>
   <link rel="stylesheet" href="/assets/css/account-menu.css">
-  <link rel="stylesheet" href="./vobo.css?v=20260823-5">
+  <link rel="stylesheet" href="./vobo.css?v=20260823-map-header-1">
 </head>
 <body>
   <header class="vobo-header">
     <div class="vobo-shell vobo-header-inner">
-      <div class="vobo-header-title">
-        <p>Jardines de Juan Pablo</p>
-        <h1><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></h1>
+      <div class="vobo-header-left">
+        <img class="vobo-header-logo" src="/mapa/assets/logo.jpg" alt="Jardines de Juan Pablo">
+        <div class="vobo-header-title">
+          <h1><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></h1>
+          <p>Portal Interno JdJP · Jardines de Juan Pablo</p>
+        </div>
       </div>
+
+      <div class="vobo-header-context"><?= $isCobranza ? 'Revisión financiera y autorización de cobranza' : 'Revisión comercial y autorización de solicitudes' ?></div>
+
       <div class="vobo-header-actions">
         <a href="/" class="secondary-link">Regresar al portal</a>
         <details class="account-menu">
