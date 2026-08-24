@@ -45,20 +45,26 @@ $approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#225b8a">
+  <meta name="theme-color" content="#ffffff">
   <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?> | Jardines de Juan Pablo</title>
   <link rel="stylesheet" href="/assets/css/account-menu.css">
-  <link rel="stylesheet" href="./vobo.css?v=20260820-4">
+  <link rel="stylesheet" href="./vobo.css?v=20260823-5">
 </head>
 <body>
   <header class="vobo-header">
     <div class="vobo-shell vobo-header-inner">
-      <div><p>Jardines de Juan Pablo</p><h1><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></h1></div>
+      <div class="vobo-header-title">
+        <p>Jardines de Juan Pablo</p>
+        <h1><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></h1>
+      </div>
       <div class="vobo-header-actions">
         <a href="/" class="secondary-link">Regresar al portal</a>
         <details class="account-menu">
           <summary class="account-trigger" aria-label="Abrir menu de usuario" title="<?= $name ?>">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="8" r="4" fill="currentColor" />
+              <path d="M4 20c0-4.1 3.6-6 8-6s8 1.9 8 6v1H4z" fill="currentColor" />
+            </svg>
           </summary>
           <div class="account-menu-panel">
             <div class="account-menu-info"><strong><?= $name ?></strong><span><?= $email ?></span></div>
@@ -120,136 +126,6 @@ $approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
       };
     })();
   </script>
-  <script src="./vobo.js?v=20260821-1"></script>
-  <script src="./vobo-firma.js?v=20260822-1"></script>
-  <script>
-  (() => {
-    const ETAPA = window.SOLICITUD_VOBO_ETAPA || 'comercial';
-    const ES_COBRANZA = ETAPA === 'cobranza';
-    const API = '/api/solicitud-venta/vobo.php';
-    const FIRMA_API = '/api/solicitud-venta/vobo-firma.php';
-    const NOTIFICACION_COBRANZA_API = '/api/solicitud-venta/notificar-cobranza.php';
-    const EXPEDIENTE_FINAL_API = '/api/solicitud-venta/notificar-expediente-final.php';
-    const btnAprobar = document.getElementById('btnAprobarVobo');
-    const btnCorreccion = document.getElementById('btnSolicitarCorreccion');
-    const correctionPanel = document.getElementById('correctionPanel');
-    const correctionReason = document.getElementById('correctionReason');
-    const btnConfirmCorrection = document.getElementById('btnConfirmCorrection');
-    const btnCancelCorrection = document.getElementById('btnCancelCorrection');
-    const message = document.getElementById('message');
-
-    btnAprobar?.addEventListener('click', aprobar);
-    btnCorreccion?.addEventListener('click', mostrarCorreccion);
-    btnConfirmCorrection?.addEventListener('click', enviarCorreccion);
-    btnCancelCorrection?.addEventListener('click', ocultarCorreccion);
-    document.getElementById('btnBack')?.addEventListener('click', ocultarCorreccion);
-
-    async function aprobar() {
-      const folio = obtenerFolio();
-      if (!folio) return mostrarMensaje('No se pudo identificar el folio de la solicitud.', 'error');
-      const firma = window.solicitudVoboFirma?.obtener?.() || '';
-      if (!firma) return mostrarMensaje('Firma dentro del recuadro de autorización antes de aprobar.', 'error');
-      const cambio = ES_COBRANZA ? 'Todos los componentes pasarán de PENDIENTE COBRANZA a APROBADA.' : 'Todos los componentes pasarán de PENDIENTE VOBO a PENDIENTE COBRANZA.';
-      const titulo = ES_COBRANZA ? '¿Aprobar el Vo.Bo. de Cobranza' : '¿Aprobar el Vo.Bo. Comercial';
-      if (!window.confirm(`${titulo} de ${folio}?\n\n${cambio}`)) return;
-
-      bloquear(true);
-      mostrarMensaje(`Guardando firma y aprobando ${folio}...`);
-      try {
-        await guardarFirma(folio, firma);
-        const data = await llamarApi({ accion: 'aprobar', folio });
-        let avisoNotificacion = '';
-
-        if (!ES_COBRANZA) {
-          try {
-            const notificacion = await notificarCobranza(folio);
-            avisoNotificacion = ` ${notificacion.message || 'Se notificó al área de Cobranza.'}`;
-          } catch (notificationError) {
-            console.error('La solicitud avanzó a Cobranza pero falló la notificación:', notificationError);
-            avisoNotificacion = ' La solicitud sí pasó a Cobranza, pero no fue posible enviar la notificación automática.';
-          }
-        } else {
-          try {
-            mostrarMensaje(`Solicitud ${folio} aprobada. Generando PDF y enviando expediente final...`);
-            const envioFinal = await notificarExpedienteFinal(folio);
-            avisoNotificacion = ` ${envioFinal.message || 'El expediente final fue enviado por correo.'}`;
-          } catch (notificationError) {
-            console.error('La solicitud fue aprobada pero falló el envío del expediente final:', notificationError);
-            avisoNotificacion = ' La solicitud sí quedó APROBADA, pero no fue posible enviar automáticamente el expediente final.';
-          }
-        }
-
-        document.getElementById('detailStatus').textContent = data.estatus || (ES_COBRANZA ? 'APROBADA' : 'PENDIENTE COBRANZA');
-        mostrarMensaje((data.message || `${folio} aprobado correctamente.`) + avisoNotificacion, 'ok');
-        setTimeout(() => window.location.reload(), ES_COBRANZA ? 3000 : 1500);
-      } catch (error) {
-        mostrarMensaje(error.message || String(error), 'error');
-        bloquear(false);
-      }
-    }
-
-    async function guardarFirma(folio, firma) {
-      const url = `${FIRMA_API}?etapa=${encodeURIComponent(ETAPA)}`;
-      const response = await fetch(url, { method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folio, firma }) });
-      const data = await response.json().catch(() => null);
-      if (!response.ok || !data?.ok) throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
-      return data;
-    }
-
-    async function notificarCobranza(folio) {
-      const response = await fetch(NOTIFICACION_COBRANZA_API, {
-        method: 'POST',
-        cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folio })
-      });
-      const data = await response.json().catch(() => null);
-      if (!response.ok || !data?.ok) throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
-      return data;
-    }
-
-    async function notificarExpedienteFinal(folio) {
-      const response = await fetch(EXPEDIENTE_FINAL_API, {
-        method: 'POST',
-        cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folio })
-      });
-      const data = await response.json().catch(() => null);
-      if (!response.ok || !data?.ok) throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
-      return data;
-    }
-
-    function mostrarCorreccion() { correctionPanel.hidden = false; correctionReason?.focus(); correctionPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
-    function ocultarCorreccion() { correctionPanel.hidden = true; if (correctionReason) correctionReason.value = ''; }
-
-    async function enviarCorreccion() {
-      const folio = obtenerFolio();
-      const motivo = String(correctionReason?.value || '').trim();
-      if (!folio) return mostrarMensaje('No se pudo identificar el folio de la solicitud.', 'error');
-      if (motivo.length < 5) { correctionReason?.focus(); return mostrarMensaje('Escribe un motivo de corrección claro antes de continuar.', 'error'); }
-      const origen = ES_COBRANZA ? 'Cobranza' : 'Vo.Bo. Comercial';
-      if (!window.confirm(`¿Enviar ${folio} a CORRECCION desde ${origen}?\n\nEl motivo quedará registrado para que el vendedor pueda atenderlo.`)) return;
-      bloquear(true);
-      mostrarMensaje(`Enviando ${folio} a corrección...`);
-      try {
-        const data = await llamarApi({ accion: 'correccion', folio, motivo });
-        document.getElementById('detailStatus').textContent = data.estatus || 'CORRECCION';
-        mostrarMensaje(data.message || `Corrección solicitada para ${folio}.`, 'ok');
-        setTimeout(() => window.location.reload(), 900);
-      } catch (error) { mostrarMensaje(error.message || String(error), 'error'); bloquear(false); }
-    }
-
-    function obtenerFolio() { const value = String(document.getElementById('detailFolio')?.textContent || '').trim().toUpperCase(); return /^SV-\d{4}-\d{6,}$/.test(value) ? value : ''; }
-    function bloquear(value) { [btnAprobar, btnCorreccion, btnConfirmCorrection, btnCancelCorrection].forEach((button) => { if (button) button.disabled = Boolean(value); }); if (correctionReason) correctionReason.disabled = Boolean(value); }
-    async function llamarApi(payload) {
-      const response = await fetch(API, { method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const data = await response.json().catch(() => null);
-      if (!response.ok || !data?.ok) throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
-      return data;
-    }
-    function mostrarMensaje(text, type = '') { if (!message) return; message.textContent = text || ''; message.className = `message ${type}`.trim(); if (text) message.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
-  })();
-  </script>
+  <script src="./vobo.js?v=20260820-4"></script>
 </body>
 </html>
