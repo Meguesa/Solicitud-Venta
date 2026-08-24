@@ -16,15 +16,15 @@ $cobranzaVobo = portal_user_can_cobranza_vobo();
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#225b8a">
+  <meta name="theme-color" content="#ffffff">
   <title>Mis Solicitudes | Jardines de Juan Pablo</title>
   <link rel="stylesheet" href="/assets/css/account-menu.css">
-  <link rel="stylesheet" href="./inicio.css?v=20260822-1">
+  <link rel="stylesheet" href="./inicio.css?v=20260823-2">
 </head>
 <body>
   <header class="seller-header">
     <div class="seller-shell seller-header-inner">
-      <div>
+      <div class="seller-header-title">
         <p>Jardines de Juan Pablo</p>
         <h1>Solicitud de Venta</h1>
       </div>
@@ -32,7 +32,10 @@ $cobranzaVobo = portal_user_can_cobranza_vobo();
         <a href="/" class="secondary-link">Regresar al portal</a>
         <details class="account-menu">
           <summary class="account-trigger" aria-label="Abrir menu de usuario" title="<?= $name ?>">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4Zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4Z"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="8" r="4" fill="currentColor" />
+              <path d="M4 20c0-4.1 3.6-6 8-6s8 1.9 8 6v1H4z" fill="currentColor" />
+            </svg>
           </summary>
           <div class="account-menu-panel">
             <div class="account-menu-info"><strong><?= $name ?></strong><span><?= $email ?></span></div>
