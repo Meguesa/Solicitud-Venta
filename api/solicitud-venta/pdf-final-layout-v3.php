@@ -61,6 +61,44 @@ function svPdfV3ApprovalBox(SvPdfDocumento $pdf, string $title, string $status, 
     $yProp->setValue($pdf, $y + $h + 7.0);
 }
 
+/**
+ * Agrega una marca de agua clara a todas las paginas ya construidas y a la
+ * pagina activa. Se hace al final para cubrir tambien las paginas creadas de
+ * forma automatica cuando una seccion no cabe en la pagina anterior.
+ */
+function svPdfV3AplicarMarcaPreliminar(SvPdfDocumento $pdf): void
+{
+    $ref = new ReflectionClass(SvPdfDocumento::class);
+    $pagesProp = $ref->getProperty('pages');
+    $streamProp = $ref->getProperty('stream');
+    $textCommand = $ref->getMethod('pdfTextCommand');
+
+    $watermark = '';
+    foreach ([165.0, 300.0, 435.0, 570.0, 705.0] as $y) {
+        $watermark .= (string) $textCommand->invoke(
+            $pdf,
+            52.0,
+            $y,
+            'DOCUMENTO PRELIMINAR - NO OFICIAL',
+            23.0,
+            true,
+            [0.87, 0.87, 0.87]
+        );
+    }
+
+    $pages = $pagesProp->getValue($pdf);
+    if (is_array($pages)) {
+        foreach ($pages as $index => $page) {
+            if (!is_array($page)) continue;
+            $pages[$index]['content'] = (string) ($page['content'] ?? '') . $watermark;
+        }
+        $pagesProp->setValue($pdf, $pages);
+    }
+
+    $stream = (string) $streamProp->getValue($pdf);
+    $streamProp->setValue($pdf, $stream . $watermark);
+}
+
 function svPdfConstruirFinalFisicoV3(
     string $folio,
     array $grupo,
@@ -70,7 +108,8 @@ function svPdfConstruirFinalFisicoV3(
     ?string $firmaCliente = null,
     ?string $firmaVendedor = null,
     ?string $firmaVoboComercial = null,
-    ?string $firmaVoboCobranza = null
+    ?string $firmaVoboCobranza = null,
+    bool $preliminar = false
 ): array {
     if (!$grupo) throw new RuntimeException('La solicitud no contiene componentes para generar el PDF.');
     usort($grupo, static function (array $a, array $b): int {
@@ -186,20 +225,35 @@ function svPdfConstruirFinalFisicoV3(
 
     $pdf->beginBackPage();
     $grid=new SvPdfFisicoGrid($pdf);
-    svPdfV3Section($grid,'Autorizaciones internas');
-    svPdfV3ApprovalBox($pdf,'Vo.Bo. Comercial',strtoupper(svPdfFisicoTexto($principal['VoBo_Estatus']??'APROBADO')),svPdfFisicoTexto($principal['VoBo_Por']??''),svPdfFecha(svPdfFisicoTexto($principal['VoBo_Fecha']??'')),$firmaVoboComercial);
-    $cobranzaPor=trim($cobranzaRevisor)!==''?trim($cobranzaRevisor):svPdfFisicoTexto($principal['Cobranza_Por']??'');
-    $cobranzaCuando=trim($cobranzaFecha)!==''?trim($cobranzaFecha):svPdfFisicoTexto($principal['Cobranza_Fecha']??'');
-    svPdfV3ApprovalBox($pdf,'Vo.Bo. de Cobranza','APROBADO',$cobranzaPor,svPdfFecha($cobranzaCuando),$firmaVoboCobranza);
+    if (!$preliminar) {
+        svPdfV3Section($grid,'Autorizaciones internas');
+        svPdfV3ApprovalBox($pdf,'Vo.Bo. Comercial',strtoupper(svPdfFisicoTexto($principal['VoBo_Estatus']??'APROBADO')),svPdfFisicoTexto($principal['VoBo_Por']??''),svPdfFecha(svPdfFisicoTexto($principal['VoBo_Fecha']??'')),$firmaVoboComercial);
+        $cobranzaPor=trim($cobranzaRevisor)!==''?trim($cobranzaRevisor):svPdfFisicoTexto($principal['Cobranza_Por']??'');
+        $cobranzaCuando=trim($cobranzaFecha)!==''?trim($cobranzaFecha):svPdfFisicoTexto($principal['Cobranza_Fecha']??'');
+        svPdfV3ApprovalBox($pdf,'Vo.Bo. de Cobranza','APROBADO',$cobranzaPor,svPdfFecha($cobranzaCuando),$firmaVoboCobranza);
+    }
     svPdfV3Section($grid,'Declaración de conformidad');
     $pdf->note('El cliente manifiesta su conformidad con la información capturada en esta Solicitud de Venta y con las condiciones, importes, componentes y servicios asentados en el expediente digital del folio.');
     svPdfV3Section($grid,'Firmas de conformidad');
     $pdf->signaturePair($firmaCliente,$firmaVendedor,$cliente,$vendedor);
     svPdfV3Section($grid,'Control del documento');
-    $grid->row([['Estatus final','APROBADA'],['Fecha de generación',svPdfFecha(gmdate('c'))]]);
-    $pdf->note('Documento final generado por el Portal Interno de Jardines de Juan Pablo. La documentación y las evidencias originales permanecen en el expediente electrónico asociado al folio.');
+    $grid->row([
+        ['Estatus final',$preliminar?'PRELIMINAR - EN REVISION':'APROBADA'],
+        ['Fecha de generación',svPdfFecha(gmdate('c'))]
+    ]);
+    $pdf->note($preliminar
+        ? 'DOCUMENTO PRELIMINAR NO OFICIAL. Se genera al enviar la solicitud a revision y no sustituye la Solicitud de Venta aprobada. Los Vo.Bo. Comercial y de Cobranza se incorporan unicamente en el documento final.'
+        : 'Documento final generado por el Portal Interno de Jardines de Juan Pablo. La documentación y las evidencias originales permanecen en el expediente electrónico asociado al folio.'
+    );
 
-    return ['contenido'=>$pdf->build(),'nombre'=>'SOLICITUD_FINAL_'.$folio.'.pdf','cliente'=>$cliente,'tipoVenta'=>$tipoVenta];
+    if ($preliminar) svPdfV3AplicarMarcaPreliminar($pdf);
+
+    return [
+        'contenido'=>$pdf->build(),
+        'nombre'=>($preliminar?'SOLICITUD_PRELIMINAR_':'SOLICITUD_FINAL_').$folio.'.pdf',
+        'cliente'=>$cliente,
+        'tipoVenta'=>$tipoVenta
+    ];
 }
 
 function svPdfGenerarYGuardarFisicoV3(string $folio,array $grupo,string $graphToken,array $config,string $cobranzaRevisor='',string $cobranzaFecha=''): array
@@ -214,4 +268,28 @@ function svPdfGenerarYGuardarFisicoV3(string $folio,array $grupo,string $graphTo
     $documento=svPdfConstruirFinalFisicoV3($folio,$grupo,$estado,$cobranzaRevisor,$cobranzaFecha,$firmaCliente,$firmaVendedor,$firmaVoboComercial,$firmaVoboCobranza);
     $item=svPdfSubir($graphToken,$driveId,$folio,$documento['nombre'],$documento['contenido']);
     return ['nombre'=>$documento['nombre'],'contenido'=>$documento['contenido'],'cliente'=>$documento['cliente'],'tipoVenta'=>$documento['tipoVenta'],'driveItemId'=>(string)($item['id']??''),'webUrl'=>(string)($item['webUrl']??''),'firmaClienteIncluida'=>is_string($firmaCliente)&&$firmaCliente!=='','firmaVendedorIncluida'=>is_string($firmaVendedor)&&$firmaVendedor!=='','firmaVoboComercialIncluida'=>is_string($firmaVoboComercial)&&$firmaVoboComercial!=='','firmaVoboCobranzaIncluida'=>is_string($firmaVoboCobranza)&&$firmaVoboCobranza!=='','layout'=>'fisico-v3'];
+}
+
+function svPdfGenerarYGuardarPreliminarFisicoV3(string $folio,array $grupo,string $graphToken,array $config): array
+{
+    $driveId=svPdfDriveExpedientes($graphToken,(string)$config['siteId']);
+    svPdfAsegurarCarpeta($graphToken,$driveId,$folio);
+    $estado=svPdfFisicoCargarEstado($graphToken,$driveId,$folio);
+    $firmaCliente=svPdfDescargarFirma($graphToken,$driveId,$folio,'FIRMA_CLIENTE');
+    $firmaVendedor=svPdfDescargarFirma($graphToken,$driveId,$folio,'FIRMA_VENDEDOR');
+    $documento=svPdfConstruirFinalFisicoV3($folio,$grupo,$estado,'','',$firmaCliente,$firmaVendedor,null,null,true);
+    $item=svPdfSubir($graphToken,$driveId,$folio,$documento['nombre'],$documento['contenido']);
+    return [
+        'nombre'=>$documento['nombre'],
+        'contenido'=>$documento['contenido'],
+        'cliente'=>$documento['cliente'],
+        'tipoVenta'=>$documento['tipoVenta'],
+        'driveItemId'=>(string)($item['id']??''),
+        'webUrl'=>(string)($item['webUrl']??''),
+        'firmaClienteIncluida'=>is_string($firmaCliente)&&$firmaCliente!=='',
+        'firmaVendedorIncluida'=>is_string($firmaVendedor)&&$firmaVendedor!=='',
+        'firmaVoboComercialIncluida'=>false,
+        'firmaVoboCobranzaIncluida'=>false,
+        'layout'=>'fisico-v3-preliminar'
+    ];
 }
