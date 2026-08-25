@@ -8,6 +8,11 @@ header('X-Content-Type-Options: nosniff');
 
 require_once __DIR__ . '/_common.php';
 require_once __DIR__ . '/notificaciones-flujo.php';
+require_once __DIR__ . '/pdf-final-lib.php';
+require_once __DIR__ . '/pdf-branding.php';
+require_once __DIR__ . '/pdf-final-layout.php';
+require_once __DIR__ . '/pdf-final-layout-v2.php';
+require_once __DIR__ . '/pdf-final-layout-v3.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     svResponderError(405, 'METHOD_NOT_ALLOWED', 'Metodo no permitido.');
@@ -150,6 +155,30 @@ try {
         ];
     }
 
+    // El PDF preliminar se genera inmediatamente despues de que la solicitud
+    // entra a Vo.Bo. Comercial. Su falla no revierte el envio: la solicitud ya
+    // quedo formalmente en revision y el PDF puede regenerarse desde su endpoint.
+    $pdfPreliminar = [
+        'generado' => false,
+        'nombre' => 'SOLICITUD_PRELIMINAR_' . $folio . '.pdf',
+        'url' => '/api/solicitud-venta/pdf-preliminar.php?folio=' . rawurlencode($folio),
+        'message' => '',
+    ];
+    try {
+        $resultadoPdfPreliminar = svPdfGenerarYGuardarPreliminarFisicoV3(
+            $folio,
+            $items,
+            $graphToken,
+            $config
+        );
+        $pdfPreliminar['generado'] = true;
+        $pdfPreliminar['nombre'] = (string) ($resultadoPdfPreliminar['nombre'] ?? $pdfPreliminar['nombre']);
+        $pdfPreliminar['message'] = 'PDF preliminar generado correctamente.';
+    } catch (Throwable $pdfError) {
+        $pdfPreliminar['message'] = 'La solicitud entro a Vo.Bo., pero el PDF preliminar debera regenerarse al abrirlo.';
+        error_log('Solicitud Venta PDF preliminar al entrar a VoBo ' . $folio . ': ' . $pdfError->getMessage());
+    }
+
     $notificacionComercial = [
         'enviado' => false,
         'grupo' => 'Solicitud Venta - Notificaciones Comercial',
@@ -179,6 +208,7 @@ try {
         'fechaEnvio' => $fechaEnvioUtc,
         'componentesActualizados' => count($componentes),
         'componentes' => $componentes,
+        'pdfPreliminar' => $pdfPreliminar,
         'notificacionComercial' => $notificacionComercial,
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 } catch (Throwable $error) {
