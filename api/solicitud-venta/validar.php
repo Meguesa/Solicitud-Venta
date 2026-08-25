@@ -165,9 +165,21 @@ try {
         'message' => '',
     ];
     try {
+        // La consulta usada para validar el grupo solo trae unas cuantas columnas.
+        // Para el PDF volvemos a leer el grupo completo, igual que en el PDF final.
+        $grupoPdfPreliminar = svPdfObtenerGrupo(
+            $graphToken,
+            $config['siteId'],
+            $config['listId'],
+            $folio
+        );
+        if (!$grupoPdfPreliminar) {
+            throw new RuntimeException('No se pudo recuperar el grupo completo para el PDF preliminar.');
+        }
+
         $resultadoPdfPreliminar = svPdfGenerarYGuardarPreliminarFisicoV3(
             $folio,
-            $items,
+            $grupoPdfPreliminar,
             $graphToken,
             $config
         );
