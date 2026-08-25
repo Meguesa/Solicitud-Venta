@@ -78,6 +78,11 @@ $uiCleanupStyle = <<<'HTML'
   #btnRegresarInicioSolicitud,
   #btnRegresarInicioInferior { display: none !important; }
   #wizardSummary:not([hidden]) + #wizardNav #wizardNext { display: none !important; }
+  #pdfPreliminarActions { border-left: 4px solid var(--jp-gold); }
+  #pdfPreliminarActions .pdf-preliminar-copy { margin-bottom: 14px; }
+  #pdfPreliminarActions .pdf-preliminar-copy h3 { margin-bottom: 5px; }
+  #pdfPreliminarActions .pdf-preliminar-copy p { margin: 0; color: var(--jp-muted); font-size: 12px; line-height: 1.5; }
+  #pdfPreliminarActions .pdf-preliminar-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
 </style>
 HTML;
 
@@ -188,14 +193,180 @@ $remoteLinkSummaryFix = <<<'HTML'
 </script>
 HTML;
 
+$pdfPreliminarUi = <<<'HTML'
+<script id="solicitudPdfPreliminarUi">
+(() => {
+  let ultimoFolio = '';
+
+  function folioActual() {
+    const folio = String(document.querySelector('.folio-box strong')?.textContent || '').trim().toUpperCase();
+    return /^SV-\d{4}-\d{6,}$/.test(folio) ? folio : '';
+  }
+
+  function estatusActual() {
+    return String(document.querySelector('.status-pill')?.textContent || document.body.dataset.solicitudEstatus || '')
+      .trim()
+      .toUpperCase();
+  }
+
+  function urlPdf(folio) {
+    return `/api/solicitud-venta/pdf-preliminar.php?folio=${encodeURIComponent(folio)}`;
+  }
+
+  function mostrarMensaje(texto, tipo = '') {
+    if (typeof window.mostrarMensaje === 'function') {
+      window.mostrarMensaje(texto, tipo);
+      return;
+    }
+    const mensaje = document.getElementById('formMessage');
+    if (!mensaje) return;
+    mensaje.textContent = texto || '';
+    mensaje.className = `form-message ${tipo}`.trim();
+  }
+
+  async function obtenerArchivo(folio) {
+    const response = await fetch(urlPdf(folio), { method: 'GET', cache: 'no-store', credentials: 'same-origin' });
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    }
+    const blob = await response.blob();
+    if (!blob.size) throw new Error('El PDF preliminar se recibió vacío.');
+    return new File([blob], `SOLICITUD_PRELIMINAR_${folio}.pdf`, { type: 'application/pdf' });
+  }
+
+  function descargarArchivo(file) {
+    const enlace = document.createElement('a');
+    const objectUrl = URL.createObjectURL(file);
+    enlace.href = objectUrl;
+    enlace.download = file.name;
+    enlace.style.display = 'none';
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 2000);
+  }
+
+  async function compartir(folio, button) {
+    const textoOriginal = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Preparando PDF...';
+    try {
+      const file = await obtenerArchivo(folio);
+      const shareData = {
+        title: `Solicitud de Venta ${folio}`,
+        text: `Documento preliminar no oficial de la Solicitud de Venta ${folio}.`,
+        files: [file]
+      };
+
+      if (typeof navigator.share === 'function' && (!navigator.canShare || navigator.canShare(shareData))) {
+        await navigator.share(shareData);
+        mostrarMensaje(`PDF preliminar ${folio} listo para compartir.`, 'ok');
+        return;
+      }
+
+      descargarArchivo(file);
+      mostrarMensaje('Este navegador no permite compartir archivos directamente. El PDF se descargó para que puedas adjuntarlo por correo, WhatsApp u otra aplicación.', 'ok');
+    } catch (error) {
+      if (error?.name === 'AbortError') return;
+      console.error('No fue posible compartir el PDF preliminar:', error);
+      mostrarMensaje(`No fue posible compartir el PDF preliminar: ${error?.message || error}`, 'error');
+    } finally {
+      button.disabled = false;
+      button.textContent = textoOriginal;
+    }
+  }
+
+  async function descargar(folio, button) {
+    const textoOriginal = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Preparando...';
+    try {
+      const file = await obtenerArchivo(folio);
+      descargarArchivo(file);
+      mostrarMensaje(`PDF preliminar ${folio} descargado.`, 'ok');
+    } catch (error) {
+      console.error('No fue posible descargar el PDF preliminar:', error);
+      mostrarMensaje(`No fue posible descargar el PDF preliminar: ${error?.message || error}`, 'error');
+    } finally {
+      button.disabled = false;
+      button.textContent = textoOriginal;
+    }
+  }
+
+  function crearAcciones(folio) {
+    const existente = document.getElementById('pdfPreliminarActions');
+    if (existente) {
+      existente.dataset.folio = folio;
+      return;
+    }
+
+    const form = document.getElementById('solicitudForm');
+    const actions = form?.querySelector('.form-actions');
+    if (!form || !actions) return;
+
+    const section = document.createElement('section');
+    section.id = 'pdfPreliminarActions';
+    section.className = 'form-section';
+    section.dataset.folio = folio;
+    section.innerHTML = `
+      <div class="pdf-preliminar-copy">
+        <h3>PDF preliminar disponible</h3>
+        <p>Documento de consulta mientras la solicitud se encuentra en Vo.Bo. Comercial. Está marcado como NO OFICIAL y no incluye los Vo.Bo. ni firmas de Comercial o Cobranza.</p>
+      </div>
+      <div class="pdf-preliminar-buttons">
+        <button id="btnVerPdfPreliminar" class="secondary-button" type="button">Ver PDF preliminar</button>
+        <button id="btnDescargarPdfPreliminar" class="secondary-button" type="button">Descargar PDF</button>
+        <button id="btnCompartirPdfPreliminar" class="primary-button" type="button">Compartir PDF</button>
+      </div>`;
+
+    form.insertBefore(section, actions);
+
+    section.querySelector('#btnVerPdfPreliminar')?.addEventListener('click', () => {
+      window.open(urlPdf(folio), '_blank', 'noopener');
+    });
+    section.querySelector('#btnDescargarPdfPreliminar')?.addEventListener('click', (event) => descargar(folio, event.currentTarget));
+    section.querySelector('#btnCompartirPdfPreliminar')?.addEventListener('click', (event) => compartir(folio, event.currentTarget));
+  }
+
+  function sincronizar() {
+    const folio = folioActual();
+    const estatus = estatusActual();
+    const disponible = folio && ['PENDIENTE VOBO', 'PENDIENTE COBRANZA'].includes(estatus);
+
+    if (!disponible) {
+      document.getElementById('pdfPreliminarActions')?.remove();
+      ultimoFolio = '';
+      return;
+    }
+
+    if (folio !== ultimoFolio || !document.getElementById('pdfPreliminarActions')) {
+      ultimoFolio = folio;
+      crearAcciones(folio);
+    }
+  }
+
+  function iniciar() {
+    sincronizar();
+    const observer = new MutationObserver(() => window.requestAnimationFrame(sincronizar));
+    observer.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'data-solicitud-estatus'] });
+    window.setInterval(sincronizar, 1200);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar, { once: true });
+  else iniciar();
+})();
+</script>
+HTML;
+
 if (strpos($source, '</head>') !== false) {
     $source = str_replace(
         '</head>',
-        '  <link rel="stylesheet" href="/assets/css/account-menu.css">' . "\n  " . $bootstrapScript . "\n  " . $uiCleanupStyle . "\n  " . $saveBeforeSubmitFix . "\n  " . $remoteLinkSummaryFix . "\n</head>",
+        '  <link rel="stylesheet" href="/assets/css/account-menu.css">' . "\n  " . $bootstrapScript . "\n  " . $uiCleanupStyle . "\n  " . $saveBeforeSubmitFix . "\n  " . $remoteLinkSummaryFix . "\n  " . $pdfPreliminarUi . "\n</head>",
         $source
     );
 } else {
-    $source = $bootstrapScript . $uiCleanupStyle . $saveBeforeSubmitFix . $remoteLinkSummaryFix . $source;
+    $source = $bootstrapScript . $uiCleanupStyle . $saveBeforeSubmitFix . $remoteLinkSummaryFix . $pdfPreliminarUi . $source;
 }
 
 if (strpos($source, '<body>') !== false) {
