@@ -26,6 +26,7 @@
     'interesFinanciamiento',
     'periodoPagos',
     'pagosAnuales',
+    'importeAnualidad',
     'totalPagar'
   ];
   const camposExactos = {
@@ -39,6 +40,7 @@
     interesFinanciamiento: 'financiamientoTasaBase',
     periodoPagos: 'financiamientoPeriodoPagosBase',
     pagosAnuales: 'financiamientoPagosAnualesBase',
+    importeAnualidad: 'financiamientoImporteAnualidadBase',
     totalPagar: 'financiamientoTotalPagarBase'
   };
 
@@ -50,6 +52,7 @@
       return;
     }
 
+    asegurarCamposAnualidad(contenedor);
     asegurarOcultos(form);
     instalarEstilos();
     instalarTarjeta(contenedor);
@@ -90,6 +93,7 @@
     window.addEventListener('message', recibirMensaje);
 
     [0, 300, 800, 1600, 3000].forEach((delay) => window.setTimeout(() => {
+      asegurarCamposAnualidad(contenedor);
       bloquearCamposFinanciamiento();
       if (valor('formaPago') === 'CREDITO' && estadoMarcador() !== 'CALCULADO') {
         limpiarCamposFinanciamiento();
@@ -98,6 +102,36 @@
       }
       actualizarEstadoUI();
     }, delay));
+  }
+
+  function asegurarCamposAnualidad(contenedor) {
+    const pagos = document.getElementById('pagosAnuales');
+    if (pagos instanceof HTMLInputElement) {
+      pagos.min = '0';
+      pagos.step = '1';
+      pagos.placeholder = 'Ej. 3';
+      if (estadoMarcador() !== 'CALCULADO' && pagos.value === '12') pagos.value = '';
+      const label = pagos.closest('label');
+      if (label?.firstChild?.nodeType === Node.TEXT_NODE) label.firstChild.textContent = 'Pagos anuales';
+    }
+
+    if (document.getElementById('importeAnualidad')) return;
+
+    const gridExistente = document.getElementById('financiamientoDetalleExtra');
+    const grid = gridExistente || (() => {
+      const nuevo = document.createElement('div');
+      nuevo.id = 'financiamientoAnualidadExtra';
+      nuevo.className = 'form-grid grid-4';
+      contenedor.insertBefore(nuevo, contenedor.lastElementChild);
+      return nuevo;
+    })();
+
+    const label = document.createElement('label');
+    label.innerHTML = 'Importe de los pagos (anualidad)<input id="importeAnualidad" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Ej. 10000">';
+
+    const pagosLabel = document.getElementById('pagosAnuales')?.closest('label');
+    if (pagosLabel?.parentElement === grid) pagosLabel.insertAdjacentElement('afterend', label);
+    else grid.appendChild(label);
   }
 
   function asegurarOcultos(form) {
@@ -117,7 +151,8 @@
       ['financiamientoPrecioListaBase', ''],
       ['financiamientoBonificacionBase', ''],
       ['financiamientoPeriodoPagosBase', ''],
-      ['financiamientoPagosAnualesBase', '']
+      ['financiamientoPagosAnualesBase', ''],
+      ['financiamientoImporteAnualidadBase', '']
     ].forEach(([id, value]) => {
       if (document.getElementById(id)) return;
       const input = document.createElement('input');
@@ -256,7 +291,7 @@
 
       console.info('[Solicitud Venta] Enviando datos comerciales a Financiamiento:', contexto);
       popup.location.replace(url);
-      estadoTexto(`Abriendo Financiamiento para ${folio}. Captura ahí las condiciones de crédito.`, 'warn');
+      estadoTexto(`Abriendo Financiamiento para ${folio}. Captura ahí las condiciones de crédito y anualidades.`, 'warn');
     } catch (error) {
       try { popup.close(); } catch (_) {}
       mostrarMensajeLocal(`No fue posible abrir Financiamiento: ${error.message || error}`, 'error');
@@ -334,7 +369,8 @@
     const precioLista = Number(data.precioLista ?? total);
     const bonificacion = Number(data.bonificacion ?? 0);
     const periodoPagos = String(data.periodoPagos || 'MENSUAL').trim().toUpperCase();
-    const pagosAnuales = Math.max(1, Math.trunc(Number(data.pagosAnuales || 12)));
+    const pagosAnuales = Math.max(0, Math.trunc(Number(data.pagosAnuales || 0)));
+    const importeAnualidad = Math.max(0, Number(data.importeAnualidad || 0));
 
     const valores = {
       precioTotal: total.toFixed(2),
@@ -350,6 +386,7 @@
       interesFinanciamiento: tasa.toFixed(2),
       periodoPagos: periodoPagos || 'MENSUAL',
       pagosAnuales: String(pagosAnuales),
+      importeAnualidad: importeAnualidad.toFixed(2),
       totalPagar: Number(data.totalPagos || 0).toFixed(2)
     };
 
@@ -367,6 +404,7 @@
     setValor('financiamientoTasaBase', valores.interesFinanciamiento);
     setValor('financiamientoPeriodoPagosBase', valores.periodoPagos);
     setValor('financiamientoPagosAnualesBase', valores.pagosAnuales);
+    setValor('financiamientoImporteAnualidadBase', valores.importeAnualidad);
     setValor('financiamientoTotalPagarBase', valores.totalPagar);
 
     // Una corrida nueva requiere que el cliente vuelva a manifestar conformidad.
@@ -440,7 +478,11 @@
     if (estaVigente()) {
       status.className = 'fin-integracion-status ok';
       status.textContent = '✓ Corrida financiera calculada, aplicada y guardada en el expediente. Los campos inferiores provienen de Financiamiento.';
-      summary.innerHTML = `<div><span>Monto financiado</span><strong>${formatoMoneda(numero('montoFinanciar'))}</strong></div><div><span>Plazo</span><strong>${Math.trunc(numero('mensualidades'))} meses</strong></div><div><span>Tasa anual</span><strong>${numero('interesFinanciamiento').toFixed(2)}%</strong></div><div><span>Mensualidad</span><strong>${formatoMoneda(numero('importeMensual'))}</strong></div>`;
+      const anualidades = Math.max(0, Math.trunc(numero('pagosAnuales')));
+      const anualidadHtml = anualidades > 0
+        ? `<div><span>Anualidad</span><strong>${anualidades} × ${formatoMoneda(numero('importeAnualidad'))}</strong></div>`
+        : '';
+      summary.innerHTML = `<div><span>Monto financiado</span><strong>${formatoMoneda(numero('montoFinanciar'))}</strong></div><div><span>Plazo</span><strong>${Math.trunc(numero('mensualidades'))} meses</strong></div><div><span>Tasa anual</span><strong>${numero('interesFinanciamiento').toFixed(2)}%</strong></div><div><span>Mensualidad</span><strong>${formatoMoneda(numero('importeMensual'))}</strong></div>${anualidadHtml}`;
       summary.hidden = false;
       return;
     }
