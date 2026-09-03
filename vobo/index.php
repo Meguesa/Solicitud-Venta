@@ -49,6 +49,7 @@ $approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
   <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?> | Jardines de Juan Pablo</title>
   <link rel="stylesheet" href="/assets/css/account-menu.css">
   <link rel="stylesheet" href="./vobo.css?v=20260823-map-header-1">
+  <link rel="stylesheet" href="./vobo-expediente.css?v=20260903-expediente-1">
 </head>
 <body>
   <header class="vobo-header">
@@ -133,5 +134,6 @@ $approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
     })();
   </script>
   <script src="./vobo.js?v=20260820-4"></script>
+  <script src="./vobo-expediente.js?v=20260903-expediente-1"></script>
 </body>
 </html>
