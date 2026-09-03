@@ -182,6 +182,15 @@ function voboExpListarArchivos(string $token, string $driveId, string $folio): a
         ]);
         foreach (($data['value'] ?? []) as $item) {
             if (!is_array($item) || !is_array($item['file'] ?? null)) continue;
+
+            $nombre = strtolower(trim((string) ($item['name'] ?? '')));
+            $file = is_array($item['file'] ?? null) ? $item['file'] : [];
+            $mime = strtolower(trim((string) ($file['mimeType'] ?? '')));
+
+            // Los JSON son archivos internos de control, estado y evidencia del flujo.
+            // No forman parte de la documentación que Comercial o Cobranza deben revisar.
+            if ($mime === 'application/json' || str_ends_with($nombre, '.json')) continue;
+
             $resultado[] = $item;
         }
         $url = trim((string) ($data['@odata.nextLink'] ?? ''));
