@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
+require_once rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''), '/') . '/api/solicitud-venta/autorizacion.php';
 
 $etapa = strtolower(trim((string) ($_GET['etapa'] ?? '')));
 if ($etapa === '') {
-    if (portal_user_can_vobo()) {
+    if (svSolicitudCanVobo()) {
         $etapa = 'comercial';
-    } elseif (portal_user_can_cobranza_vobo()) {
+    } elseif (svSolicitudCanCobranzaVobo()) {
         $etapa = 'cobranza';
     } else {
-        portal_require_authentication();
+        svSolicitudRequireAuthentication();
         http_response_code(403);
         exit('Tu cuenta no tiene autorización para revisar solicitudes.');
     }
@@ -20,14 +20,14 @@ if (!in_array($etapa, ['comercial', 'cobranza'], true)) {
     http_response_code(400);
     exit('La etapa de Vo.Bo. indicada no es válida.');
 }
-if ($etapa === 'cobranza') portal_require_cobranza_vobo();
-else portal_require_vobo();
+if ($etapa === 'cobranza') svSolicitudRequireCobranzaVobo();
+else svSolicitudRequireVobo();
 
-$user = portal_user();
+$user = svSolicitudUsuario();
 $name = htmlspecialchars((string) ($user['name'] ?? 'Usuario'), ENT_QUOTES, 'UTF-8');
 $email = htmlspecialchars((string) ($user['email'] ?? ''), ENT_QUOTES, 'UTF-8');
 $isCobranza = $etapa === 'cobranza';
-$role = htmlspecialchars($isCobranza ? 'COBRANZA' : portal_vobo_role(), ENT_QUOTES, 'UTF-8');
+$role = htmlspecialchars($isCobranza ? 'COBRANZA' : svSolicitudVoboRole(), ENT_QUOTES, 'UTF-8');
 $pageTitle = $isCobranza ? 'Vo.Bo. de Cobranza' : 'Vo.Bo. Comercial';
 $introTitle = $isCobranza ? 'Solicitudes pendientes de Cobranza' : 'Solicitudes pendientes de revisión comercial';
 $introText = $isCobranza

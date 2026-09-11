@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
+require_once rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''), '/') . '/api/solicitud-venta/autorizacion.php';
 require_once __DIR__ . '/_common.php';
 require_once __DIR__ . '/notificaciones.php';
 
-portal_require_authentication();
+svSolicitudRequireAuthentication();
 
-$user = portal_user();
+$user = svSolicitudUsuario();
 $userEmail = strtolower(trim((string) ($user['email'] ?? '')));
 $userName = trim((string) ($user['name'] ?? $userEmail));
 

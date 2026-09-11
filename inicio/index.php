@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
-portal_require_authentication();
+require_once rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''), '/') . '/api/solicitud-venta/autorizacion.php';
+svSolicitudRequireAuthentication();
 
-$user = portal_user();
+$user = svSolicitudUsuario();
 $name = htmlspecialchars((string) ($user['name'] ?? 'Usuario'), ENT_QUOTES, 'UTF-8');
 $email = htmlspecialchars((string) ($user['email'] ?? ''), ENT_QUOTES, 'UTF-8');
-$voboRole = portal_vobo_role();
-$cobranzaVobo = portal_user_can_cobranza_vobo();
+$voboRole = svSolicitudVoboRole();
+$cobranzaVobo = svSolicitudCanCobranzaVobo();
 ?>
 <!doctype html>
 <html lang="es-MX">

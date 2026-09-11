@@ -34,7 +34,7 @@ function svConfig(): array
 /** @return array<string,mixed> */
 function svUsuarioAutenticado(string $tenantId, string $clientId): array
 {
-    // Solicitud de Venta vive dentro del Portal y debe reutilizar la misma sesion
+    // Solicitud de Venta reutiliza la sesion SSO compartida del Portal
     // PHP HttpOnly. Leer la sesion directamente evita cargar bootstrap.php dentro
     // de esta funcion y, por tanto, evita sobrescribir variables globales llamadas
     // $config que los endpoints usan para la configuracion de Microsoft Graph.

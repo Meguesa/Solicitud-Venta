@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
+require_once rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''), '/') . '/api/solicitud-venta/autorizacion.php';
 
-if (!portal_is_authenticated()) {
+if (!svSolicitudEstaAutenticado()) {
     http_response_code(401);
     exit('Sesion requerida.');
 }
-if (!portal_user_can_cobranza_vobo() && !portal_user_can_vobo()) {
+if (!svSolicitudCanCobranzaVobo() && !svSolicitudCanVobo()) {
     http_response_code(403);
     exit('Sin autorizacion para esta prueba.');
 }

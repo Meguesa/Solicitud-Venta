@@ -6,7 +6,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
-require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
+require_once rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''), '/') . '/api/solicitud-venta/autorizacion.php';
 require_once __DIR__ . '/_common.php';
 
 function voboError(int $status, string $code, string $message): void
@@ -19,7 +19,7 @@ function voboError(int $status, string $code, string $message): void
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     voboError(405, 'METHOD_NOT_ALLOWED', 'Metodo no permitido.');
 }
-if (!portal_is_authenticated()) {
+if (!svSolicitudEstaAutenticado()) {
     voboError(401, 'AUTH_REQUIRED', 'La sesion del Portal Interno no esta activa.');
 }
 
@@ -28,15 +28,15 @@ if (!in_array($etapa, ['comercial', 'cobranza'], true)) {
     voboError(400, 'INVALID_STAGE', 'La etapa de Vo.Bo. solicitada no es valida.');
 }
 if ($etapa === 'cobranza') {
-    if (!portal_user_can_cobranza_vobo()) {
+    if (!svSolicitudCanCobranzaVobo()) {
         voboError(403, 'COBRANZA_FORBIDDEN', 'Tu cuenta no tiene autorizacion para revisar solicitudes en Vo.Bo. de Cobranza.');
     }
-} elseif (!portal_user_can_vobo()) {
+} elseif (!svSolicitudCanVobo()) {
     voboError(403, 'VOBO_FORBIDDEN', 'Tu cuenta no tiene autorizacion para revisar solicitudes en Vo.Bo. Comercial.');
 }
 
 $estatusPendiente = $etapa === 'cobranza' ? 'PENDIENTE COBRANZA' : 'PENDIENTE VOBO';
-$rolEtapa = $etapa === 'cobranza' ? 'COBRANZA' : portal_vobo_role();
+$rolEtapa = $etapa === 'cobranza' ? 'COBRANZA' : svSolicitudVoboRole();
 
 $raw = file_get_contents('php://input');
 $payload = json_decode(is_string($raw) ? $raw : '', true);
@@ -90,7 +90,7 @@ if ($accion === 'listar') {
         return $fechaB <=> $fechaA;
     });
 
-    $user = portal_user();
+    $user = svSolicitudUsuario();
     http_response_code(200);
     echo json_encode([
         'ok' => true,
@@ -299,10 +299,10 @@ function voboProcesarDecision(string $accion, string $etapa, string $folio, arra
         voboError(409, 'CORRECTION_COLUMN_REQUIRED', 'Falta una columna de texto en SharePoint para guardar el motivo de correccion.');
     }
 
-    $user = portal_user();
+    $user = svSolicitudUsuario();
     $nombre = trim((string) ($user['name'] ?? ''));
     $correo = strtolower(trim((string) ($user['email'] ?? '')));
-    $rol = $etapa === 'cobranza' ? 'COBRANZA' : portal_vobo_role();
+    $rol = $etapa === 'cobranza' ? 'COBRANZA' : svSolicitudVoboRole();
     $revisor = trim($nombre . ($correo !== '' ? ' <' . $correo . '>' : '') . ($rol !== '' ? ' · ' . $rol : ''));
     $fecha = gmdate('Y-m-d\TH:i:s\Z');
 

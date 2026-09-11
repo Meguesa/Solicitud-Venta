@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__) . '/includes/bootstrap.php';
-portal_require_authentication();
+require_once rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''), '/') . '/api/solicitud-venta/autorizacion.php';
+svSolicitudRequireAuthentication();
 
-$user = portal_user();
+$user = svSolicitudUsuario();
 $session = [
     'authenticated' => true,
     'user' => [

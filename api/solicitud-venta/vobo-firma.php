@@ -6,7 +6,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
-require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
+require_once rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''), '/') . '/api/solicitud-venta/autorizacion.php';
 require_once __DIR__ . '/_common.php';
 require_once __DIR__ . '/pdf-final-lib.php';
 
@@ -18,13 +18,13 @@ function vfError(int $status, string $code, string $message): void
 }
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') vfError(405, 'METHOD_NOT_ALLOWED', 'Metodo no permitido.');
-if (!portal_is_authenticated()) vfError(401, 'AUTH_REQUIRED', 'La sesion del Portal Interno no esta activa.');
+if (!svSolicitudEstaAutenticado()) vfError(401, 'AUTH_REQUIRED', 'La sesion del Portal Interno no esta activa.');
 
 $etapa = strtolower(trim((string) ($_GET['etapa'] ?? 'comercial')));
 if (!in_array($etapa, ['comercial', 'cobranza'], true)) vfError(400, 'INVALID_STAGE', 'La etapa no es valida.');
 if ($etapa === 'cobranza') {
-    if (!portal_user_can_cobranza_vobo()) vfError(403, 'COBRANZA_FORBIDDEN', 'No tienes autorizacion para firmar el Vo.Bo. de Cobranza.');
-} elseif (!portal_user_can_vobo()) {
+    if (!svSolicitudCanCobranzaVobo()) vfError(403, 'COBRANZA_FORBIDDEN', 'No tienes autorizacion para firmar el Vo.Bo. de Cobranza.');
+} elseif (!svSolicitudCanVobo()) {
     vfError(403, 'VOBO_FORBIDDEN', 'No tienes autorizacion para firmar el Vo.Bo. Comercial.');
 }
 
@@ -82,7 +82,7 @@ try {
     vfError(502, 'SIGNATURE_SAVE_FAILED', 'No fue posible guardar la firma de autorizacion.');
 }
 
-$user = portal_user();
+$user = svSolicitudUsuario();
 http_response_code(200);
 echo json_encode([
     'ok' => true,
