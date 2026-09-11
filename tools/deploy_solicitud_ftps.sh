@@ -128,12 +128,11 @@ append_tree "api/solicitud-venta" "api/solicitud-venta" "$API_BATCH"
 append_tree "firma" "firma" "$FIRMA_BATCH"
 
 append_file "solicitud-venta/index.html" "solicitud-venta/index.html" "$CORRECTION_BATCH"
-append_file "solicitud-venta/correccion-validar-fix.js" "solicitud-venta/correccion-validar-fix.js" "$CORRECTION_BATCH"
-append_file "solicitud-venta/correccion-fix.js" "solicitud-venta/correccion-fix.js" "$CORRECTION_BATCH"
+append_file "solicitud-venta/correccion-validacion.js" "solicitud-venta/correccion-validacion.js" "$CORRECTION_BATCH"
+append_file "solicitud-venta/correccion.js" "solicitud-venta/correccion.js" "$CORRECTION_BATCH"
 append_file "api/solicitud-venta/reabrir-correccion.php" "api/solicitud-venta/reabrir-correccion.php" "$CORRECTION_BATCH"
 
 echo "Alcance de despliegue: $DEPLOY_SCOPE"
-
 echo "Proteccion activa: solo se permiten rutas solicitud-venta/, api/solicitud-venta/ y firma/."
 
 if [ "$DEPLOY_SCOPE" = "correction" ]; then

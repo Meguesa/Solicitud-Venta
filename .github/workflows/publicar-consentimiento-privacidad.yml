@@ -6,9 +6,9 @@ on:
       - main
     paths:
       - 'consentimiento-privacidad.js'
-      - 'documentacion-fix.js'
+      - 'documentacion.js'
       - 'firma-remota.js'
-      - 'firma-remota-fix.js'
+      - 'firma-remota-preflight.js'
       - 'firma/index.html'
       - 'firma/firma.js'
       - 'firma/consentimiento.js'

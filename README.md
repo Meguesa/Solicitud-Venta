@@ -34,7 +34,7 @@ Solicitud-Venta/
 └── styles.css              # Estilos principales
 ```
 
-Los archivos JavaScript adicionales de la raiz son modulos funcionales cargados por el proceso de produccion. Aunque algunos conservan sufijos historicos como `-fix`, actualmente forman parte del runtime y no deben eliminarse ni moverse sin refactorizar primero sus referencias en el workflow canonico.
+Los modulos JavaScript de la raiz representan funciones de produccion concretas. Los nombres historicos con sufijo `-fix` fueron retirados; los modulos actuales usan nombres funcionales estables como `correccion.js`, `correccion-validacion.js`, `documentacion.js` y `firma-remota-preflight.js`.
 
 ## Componentes principales
 
@@ -107,9 +107,9 @@ Las credenciales, secretos y IDs de Microsoft/SharePoint permanecen fuera del re
 
 ## Regla de mantenimiento
 
-Antes de eliminar o mover un archivo del runtime:
+Antes de eliminar, renombrar o mover un archivo del runtime:
 
 1. verificar referencias en `index.php`, `index.html` y los modulos JS;
-2. verificar referencias en `.github/workflows/publicar-solicitud-cpanel.yml`;
+2. verificar referencias en `.github/workflows/publicar-solicitud-cpanel.yml` y `tools/deploy_solicitud_ftps.sh`;
 3. construir y validar el paquete de produccion;
 4. probar captura, firma, Vo.Bo., PDF y notificaciones antes de considerar terminado el cambio.

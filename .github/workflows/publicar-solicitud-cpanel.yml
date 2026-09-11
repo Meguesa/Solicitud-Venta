@@ -46,9 +46,10 @@ jobs:
           test -s financiamiento-integracion.js
           test -s financiamiento-bridge.js
           test -s firma-remota.js
-          test -s firma-remota-fix.js
-          test -s correccion-fix.js
-          test -s correccion-validar-fix.js
+          test -s firma-remota-preflight.js
+          test -s correccion.js
+          test -s correccion-validacion.js
+          test -s documentacion.js
           test -s wizard.js
           test -s wizard.css
           test -s consentimiento-privacidad.js
@@ -95,10 +96,10 @@ jobs:
 
           for file in \
             index.php index.html styles.css wizard.css config.js auth.js app.js \
-            componentes.js componentes-sync.js correccion-validar-fix.js \
+            componentes.js componentes-sync.js correccion-validacion.js \
             firma-remota.js firma-remota-seguimiento.js firma-remota-gestion.js \
-            firma-remota-fix.js correccion-fix.js firma-remota.css extras.js \
-            documentos-identificacion-doble.js documentacion-fix.js persistencia.js \
+            firma-remota-preflight.js correccion.js firma-remota.css extras.js \
+            documentos-identificacion-doble.js documentacion.js persistencia.js \
             financiamiento-integracion.js financiamiento-bridge.js sucursales-componentes.js \
             consentimiento-privacidad.js wizard.js resumen-directo.js; do
             test -s "$file"
@@ -138,7 +139,7 @@ jobs:
           modules = [
               'componentes.js',
               'componentes-sync.js',
-              'correccion-validar-fix.js',
+              'correccion-validacion.js',
               'consentimiento-privacidad.js',
               'firma-remota.js',
               'firma-remota-seguimiento.js',
@@ -151,9 +152,9 @@ jobs:
               'sucursales-componentes.js',
               'wizard.js',
               'resumen-directo.js',
-              'firma-remota-fix.js',
-              'correccion-fix.js',
-              'documentacion-fix.js',
+              'firma-remota-preflight.js',
+              'correccion.js',
+              'documentacion.js',
           ]
           module_set = set(modules)
 
@@ -174,7 +175,7 @@ jobs:
           if '</body>' not in source:
               raise RuntimeError('No se encontro </body> para insertar los modulos de Solicitud de Venta.')
 
-          version = '20260911-privacy-consent-1'
+          version = '20260911-cleanup-1'
           tags = '\n'.join(f'  <script src="{module}?v={version}"></script>' for module in modules)
           source = source.replace('</body>', f'{tags}\n</body>', 1)
 
@@ -237,7 +238,7 @@ jobs:
           cp /tmp/solicitud-common-session.php _deploy/api/solicitud-venta/_common.php
 
           grep -q '__solicitudComponentesModuloActivo' _deploy/solicitud-venta/componentes.js
-          grep -q '__solicitudFirmaRemotaPreflightActivo' _deploy/solicitud-venta/firma-remota-fix.js
+          grep -q '__solicitudFirmaRemotaPreflightActivo' _deploy/solicitud-venta/firma-remota-preflight.js
           grep -q '__solicitudFinanciamientoIntegracionActiva' _deploy/solicitud-venta/financiamiento-integracion.js
           grep -q '__solicitudFinanciamientoBridgeActivo' _deploy/solicitud-venta/financiamiento-bridge.js
           grep -q '__solicitudConsentimientoFetchEnvuelto' _deploy/solicitud-venta/consentimiento-privacidad.js
@@ -246,7 +247,7 @@ jobs:
           grep -q 'solicitud-venta-2026-09-11-v1' _deploy/firma/index.html
           grep -q 'Aviso de Privacidad versión 11/09/2026' _deploy/api/solicitud-venta/pdf-final-layout-v3.php
           grep -q 'CORRIDA_FINANCIERA' _deploy/api/solicitud-venta/archivos.php
-          grep -q 'VALIDAR_ENDPOINT' _deploy/solicitud-venta/correccion-validar-fix.js
+          grep -q 'VALIDAR_ENDPOINT' _deploy/solicitud-venta/correccion-validacion.js
           grep -q 'btnSolicitudInicio' _deploy/solicitud-venta/index.html
           grep -q 'referenciaSolicitada' _deploy/solicitud-venta/persistencia.js
           grep -Eq 'reconstruirEstado(Legado|DesdeFields)' _deploy/api/solicitud-venta/estado-borrador.php
