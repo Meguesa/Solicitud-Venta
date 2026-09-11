@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 /**
  * Version juridico-tecnica del consentimiento mostrado al cliente.
- *
- * Si cambia el texto material del consentimiento o el Aviso de Privacidad,
- * debe incrementarse la version y conservarse la evidencia anterior.
+ * Si cambia el texto material o el Aviso de Privacidad, debe incrementarse la
+ * version y conservarse la evidencia anterior.
  */
 function svAvisoPrivacidadVersion(): string
 {
@@ -92,4 +91,31 @@ function svConsentimientoPrivacidadGuardar(
         ],
         $body
     );
+}
+
+/** @return array<string,mixed> */
+function svConsentimientoPrivacidadCargar(
+    string $graphToken,
+    string $driveId,
+    string $folio
+): array {
+    $path = rawurlencode(strtoupper(trim($folio))) . '/' . rawurlencode('_CONSENTIMIENTO_PRIVACIDAD.json');
+    $url = 'https://graph.microsoft.com/v1.0/drives/' . rawurlencode($driveId) . '/root:/' . $path . ':/content';
+    $data = svCurlJson($url, 'GET', [
+        'Authorization: Bearer ' . $graphToken,
+        'Accept: application/json',
+    ]);
+    return is_array($data) ? $data : [];
+}
+
+/** @param array<string,mixed> $evidencia */
+function svConsentimientoPrivacidadEsVigente(array $evidencia, string $folio): bool
+{
+    if (!(bool) ($evidencia['aceptado'] ?? false)) return false;
+    if (strtoupper(trim((string) ($evidencia['folio'] ?? ''))) !== strtoupper(trim($folio))) return false;
+    if (!hash_equals(svAvisoPrivacidadVersion(), trim((string) ($evidencia['avisoPrivacidadVersion'] ?? '')))) return false;
+    if (!hash_equals(svConsentimientoPrivacidadVersion(), trim((string) ($evidencia['consentimientoVersion'] ?? '')))) return false;
+    if (trim((string) ($evidencia['aceptadoUtc'] ?? '')) === '') return false;
+    if (trim((string) ($evidencia['firmaClienteSha256'] ?? '')) === '') return false;
+    return true;
 }
