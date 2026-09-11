@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta name="theme-color" content="#225b8a">
   <title>Firma de Solicitud | Jardines de Juan Pablo</title>
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=20260911-privacy-1">
 </head>
 <body>
   <main class="signature-shell">
@@ -69,22 +69,26 @@
       </section>
 
       <section class="card consent-card">
-        <label class="consent-line">
+        <h2>Consentimiento y firma</h2>
+        <p class="muted">Antes de firmar, revisa la solicitud y el Aviso de Privacidad.</p>
+
+        <label class="consent-line" for="consentimiento">
           <input id="consentimiento" type="checkbox">
-          <span>Declaro que revisé la información de la solicitud, que los datos y condiciones mostrados corresponden a lo acordado y que manifiesto mi consentimiento mediante esta firma electrónica.</span>
+          <span>Confirmo que revisé la información de la Solicitud de Venta y que los datos y condiciones mostrados corresponden a lo acordado. Asimismo, declaro que leí el <a href="https://portal.juanpablo.com.mx/privacidad.php" target="_blank" rel="noopener noreferrer">Aviso de Privacidad de MEGUESA, S.A. de C.V.</a> y autorizo el tratamiento de mis datos personales y, cuando corresponda, datos patrimoniales o financieros para elaborar, evaluar, formalizar, administrar y dar seguimiento a esta Solicitud de Venta.</span>
         </label>
+        <p class="consent-version">Aviso de Privacidad: versión 11/09/2026 · Consentimiento: solicitud-venta-2026-09-11-v1</p>
 
         <h2>Firma del cliente</h2>
         <p class="muted">Firma dentro del recuadro usando tu dedo o un lápiz digital.</p>
-        <canvas id="firmaCanvas" class="signature-canvas" aria-label="Firma del cliente"></canvas>
+        <canvas id="firmaCanvas" class="signature-canvas" aria-label="Firma del cliente" tabindex="0"></canvas>
         <div class="signature-actions">
           <button id="btnLimpiar" type="button" class="secondary">Limpiar firma</button>
-          <button id="btnFirmar" type="button" class="primary">Aceptar y firmar</button>
+          <button id="btnFirmar" type="button" class="primary">Aceptar aviso y firmar</button>
         </div>
-        <p id="formMessage" class="form-message"></p>
+        <p id="formMessage" class="form-message" role="status" aria-live="polite"></p>
       </section>
     </div>
   </main>
-  <script src="./firma.js"></script>
+  <script src="./firma.js?v=20260911-privacy-1"></script>
 </body>
 </html>
