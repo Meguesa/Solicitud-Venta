@@ -10,7 +10,7 @@ Herramienta independiente para digitalizar y administrar el proceso de Solicitud
 - Firma remota publica: `/firma/`
 - Backend: `/api/solicitud-venta/`
 
-El repositorio `Meguesa/Solicitud-Venta` es la fuente oficial de frontend, backend, firma remota, PDFs, notificaciones, permisos funcionales y despliegue de Solicitud de Venta.
+`Meguesa/Solicitud-Venta` es la fuente oficial del frontend, backend, firma remota, PDFs, notificaciones, permisos funcionales y despliegue de Solicitud de Venta.
 
 El Portal Interno solamente proporciona la sesion SSO compartida de Microsoft 365 y la navegacion general. La logica funcional de Solicitud de Venta no debe implementarse en `Portal-Interno-JJP`.
 
@@ -18,23 +18,23 @@ El Portal Interno solamente proporciona la sesion SSO compartida de Microsoft 36
 
 ```text
 Solicitud-Venta/
-├── .github/workflows/      # Despliegues de GitHub Actions
+├── .github/workflows/      # Despliegue canonico y disparadores
 ├── api/solicitud-venta/    # Backend PHP
 ├── docs/                   # Documentacion tecnica
 ├── firma/                  # Experiencia publica de firma remota
 ├── inicio/                 # Pantalla Mis solicitudes
-├── tools/                  # Scripts de construccion y despliegue
+├── tools/                  # Build, normalizacion y despliegue FTPS
 ├── vobo/                   # Bandejas de Vo.Bo. Comercial y Cobranza
 ├── index.php               # Entrada autenticada de produccion
-├── index.html              # Plantilla base de la captura
+├── index.html              # Plantilla base de captura
 ├── app.js                  # Logica principal de captura
-├── auth.js                 # Adaptador de sesion SSO del Portal
+├── auth.js                 # Adaptador de sesion SSO
 ├── persistencia.js         # Persistencia de borradores
 ├── wizard.js               # Navegacion por pasos y resumen
 └── styles.css              # Estilos principales
 ```
 
-Los modulos JavaScript de la raiz representan funciones de produccion concretas. Los nombres historicos con sufijo `-fix` fueron retirados; los modulos actuales usan nombres funcionales estables como `correccion.js`, `correccion-validacion.js`, `documentacion.js` y `firma-remota-preflight.js`.
+Los modulos de produccion ya no utilizan nombres temporales `*-fix.js`. Los nombres funcionales actuales incluyen `correccion.js`, `correccion-validacion.js`, `documentacion.js` y `firma-remota-preflight.js`.
 
 ## Componentes principales
 
@@ -83,13 +83,23 @@ Los roles funcionales viven en `api/solicitud-venta/autorizacion.php` y se resue
 
 Los grupos de notificacion y expediente final se administran por separado.
 
-## Despliegue
+## Build y despliegue
 
 Workflow canonico:
 
 `.github/workflows/publicar-solicitud-cpanel.yml`
 
-Este workflow construye un paquete independiente y publica exclusivamente:
+La construccion de produccion esta centralizada en:
+
+`tools/build_solicitud_package.py`
+
+Este script crea `_deploy/`, prepara la plantilla, aplica compatibilidad historica, valida marcadores criticos y deja listo el paquete para publicacion. La compatibilidad que aun debe migrarse gradualmente a codigo fuente definitivo esta aislada en:
+
+`tools/normalize_runtime.py`
+
+El workflow ya no contiene bloques extensos de transformacion de codigo: valida la estructura, ejecuta el builder, valida PHP y publica por FTPS mediante `tools/deploy_solicitud_ftps.sh`.
+
+El despliegue solo puede escribir en:
 
 - `/solicitud-venta/`
 - `/api/solicitud-venta/`
@@ -99,7 +109,7 @@ No debe publicar ni modificar Dashboard, Mapa del Panteon, Financiamiento indepe
 
 ## Configuracion privada
 
-Las credenciales, secretos y IDs de Microsoft/SharePoint permanecen fuera del repositorio, en la configuracion privada del servidor. No deben agregarse secretos al frontend ni al control de versiones.
+Las credenciales, secretos e IDs de Microsoft/SharePoint permanecen fuera del repositorio, en la configuracion privada del servidor. No deben agregarse secretos al frontend ni al control de versiones.
 
 ## Documentacion
 
@@ -107,9 +117,10 @@ Las credenciales, secretos y IDs de Microsoft/SharePoint permanecen fuera del re
 
 ## Regla de mantenimiento
 
-Antes de eliminar, renombrar o mover un archivo del runtime:
+Antes de eliminar, mover o consolidar un archivo del runtime:
 
-1. verificar referencias en `index.php`, `index.html` y los modulos JS;
-2. verificar referencias en `.github/workflows/publicar-solicitud-cpanel.yml` y `tools/deploy_solicitud_ftps.sh`;
-3. construir y validar el paquete de produccion;
-4. probar captura, firma, Vo.Bo., PDF y notificaciones antes de considerar terminado el cambio.
+1. verificar referencias en `index.php`, `index.html` y modulos JS;
+2. verificar `tools/build_solicitud_package.py` y `tools/deploy_solicitud_ftps.sh`;
+3. construir y validar `_deploy/`;
+4. probar captura, guardado/reanudacion, firma presencial/remota, Vo.Bo., correcciones, PDF y notificaciones;
+5. retirar del normalizador cualquier parche que ya haya sido incorporado de forma definitiva al codigo fuente.

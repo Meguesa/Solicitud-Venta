@@ -35,7 +35,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           test -s index.php
           test -s index.html
           test -s app.js
@@ -43,15 +42,11 @@ jobs:
           test -s config.js
           test -s styles.css
           test -s persistencia.js
-          test -s financiamiento-integracion.js
-          test -s financiamiento-bridge.js
           test -s firma-remota.js
           test -s firma-remota-preflight.js
           test -s correccion.js
           test -s correccion-validacion.js
           test -s documentacion.js
-          test -s wizard.js
-          test -s wizard.css
           test -s consentimiento-privacidad.js
           test -d inicio
           test -d vobo
@@ -64,15 +59,12 @@ jobs:
           test -s api/solicitud-venta/vobo.php
           test -s api/solicitud-venta/firma-remota-publica.php
           test -s api/solicitud-venta/consentimiento-privacidad.php
-          test -s api/solicitud-venta/consentimiento.php
-          test -s api/solicitud-venta/consentimiento-remoto.php
-          test -s api/solicitud-venta/pdf-branding.php
-          test -s api/solicitud-venta/identificaciones-pdf.php
+          test -s api/solicitud-venta/pdf-final.php
+          test -s api/solicitud-venta/pdf-preliminar.php
           test -s firma/index.html
           test -s firma/firma.js
-          test -s firma/consentimiento.js
-          test -s firma/styles.css
-          test -s tools/prepare_solicitud_portal_session.py
+          test -s tools/build_solicitud_package.py
+          test -s tools/normalize_runtime.py
           test -s tools/deploy_solicitud_ftps.sh
 
           count_php="$(find api/solicitud-venta -maxdepth 1 -type f -name '*.php' | wc -l | tr -d ' ')"
@@ -82,186 +74,11 @@ jobs:
             exit 1
           fi
 
-      - name: Construir paquete de produccion independiente
+      - name: Construir y validar paquete de produccion
         shell: bash
         run: |
           set -euo pipefail
-
-          rm -rf _deploy
-          mkdir -p _deploy/solicitud-venta/inicio
-          mkdir -p _deploy/solicitud-venta/vobo
-          mkdir -p _deploy/api
-          mkdir -p _deploy/firma
-          mkdir -p _deploy/scripts
-
-          for file in \
-            index.php index.html styles.css wizard.css config.js auth.js app.js \
-            componentes.js componentes-sync.js correccion-validacion.js \
-            firma-remota.js firma-remota-seguimiento.js firma-remota-gestion.js \
-            firma-remota-preflight.js correccion.js firma-remota.css extras.js \
-            documentos-identificacion-doble.js documentacion.js persistencia.js \
-            financiamiento-integracion.js financiamiento-bridge.js sucursales-componentes.js \
-            consentimiento-privacidad.js wizard.js resumen-directo.js; do
-            test -s "$file"
-            cp "$file" "_deploy/solicitud-venta/$file"
-          done
-
-          cp -a inicio/. _deploy/solicitud-venta/inicio/
-          cp -a vobo/. _deploy/solicitud-venta/vobo/
-          cp -a api/solicitud-venta _deploy/api/solicitud-venta
-          cp -a firma/. _deploy/firma/
-          cp tools/prepare_solicitud_portal_session.py _deploy/scripts/prepare_solicitud_portal_session.py
-
-          python3 <<'PY'
-          from pathlib import Path
-          from urllib.parse import urlsplit
-          from collections import Counter
-          import re
-
-          path = Path('_deploy/solicitud-venta/index.html')
-          source = path.read_text(encoding='utf-8')
-
-          if 'firma-remota.css' not in source:
-              source = source.replace(
-                  '<link rel="stylesheet" href="styles.css">',
-                  '<link rel="stylesheet" href="styles.css">\n  <link rel="stylesheet" href="firma-remota.css?v=20260820-1">'
-              )
-          if 'wizard.css' not in source:
-              source = source.replace('</head>', '  <link rel="stylesheet" href="wizard.css?v=20260821-1">\n</head>')
-
-          source = re.sub(
-              r'\s*<script[^>]+(?:msal-browser|alcdn\.msauth|cdn\.jsdelivr\.net/npm/@azure/msal-browser)[^>]*></script>\s*',
-              '\n',
-              source,
-              flags=re.I,
-          )
-
-          modules = [
-              'componentes.js',
-              'componentes-sync.js',
-              'correccion-validacion.js',
-              'consentimiento-privacidad.js',
-              'firma-remota.js',
-              'firma-remota-seguimiento.js',
-              'firma-remota-gestion.js',
-              'extras.js',
-              'documentos-identificacion-doble.js',
-              'persistencia.js',
-              'financiamiento-bridge.js',
-              'financiamiento-integracion.js',
-              'sucursales-componentes.js',
-              'wizard.js',
-              'resumen-directo.js',
-              'firma-remota-preflight.js',
-              'correccion.js',
-              'documentacion.js',
-          ]
-          module_set = set(modules)
-
-          script_pattern = re.compile(
-              r'\s*<script\b[^>]*\bsrc=["\']([^"\']+)["\'][^>]*></script>\s*',
-              flags=re.I,
-          )
-
-          def basename_src(src: str) -> str:
-              path_part = urlsplit(src).path.rstrip('/')
-              return path_part.rsplit('/', 1)[-1] if path_part else ''
-
-          def remove_managed_script(match: re.Match) -> str:
-              return '\n' if basename_src(match.group(1)) in module_set else match.group(0)
-
-          source = script_pattern.sub(remove_managed_script, source)
-
-          if '</body>' not in source:
-              raise RuntimeError('No se encontro </body> para insertar los modulos de Solicitud de Venta.')
-
-          version = '20260911-cleanup-1'
-          tags = '\n'.join(f'  <script src="{module}?v={version}"></script>' for module in modules)
-          source = source.replace('</body>', f'{tags}\n</body>', 1)
-
-          nombres = [basename_src(src) for src in script_pattern.findall(source)]
-          counts = Counter(nombres)
-          for module in modules:
-              if counts[module] != 1:
-                  raise RuntimeError(f'{module} aparece {counts[module]} veces; se esperaba exactamente 1.')
-
-          path.write_text(source, encoding='utf-8')
-
-          componentes_path = Path('_deploy/solicitud-venta/componentes.js')
-          componentes_source = componentes_path.read_text(encoding='utf-8')
-          sentinel = 'window.__solicitudComponentesModuloActivo'
-          if sentinel not in componentes_source:
-              marker = '(() => {'
-              replacement = """(() => {\n  if (window.__solicitudComponentesModuloActivo) return;\n  window.__solicitudComponentesModuloActivo = true;"""
-              if marker not in componentes_source:
-                  raise RuntimeError('No se encontro el inicio esperado de componentes.js.')
-              componentes_source = componentes_source.replace(marker, replacement, 1)
-              componentes_path.write_text(componentes_source, encoding='utf-8')
-
-          # Branding y declaracion de privacidad del PDF final.
-          lib_path = Path('_deploy/api/solicitud-venta/pdf-final-lib.php')
-          lib_source = lib_path.read_text(encoding='utf-8')
-          lib_source = lib_source.replace(
-              "$this->text(self::MARGIN + 10.0, 41.0, 'JARDINES DE JUAN PABLO'",
-              "$this->text(self::MARGIN + 90.0, 41.0, 'JARDINES DE JUAN PABLO'"
-          )
-          lib_source = lib_source.replace(
-              "$this->text(self::MARGIN + 10.0, 58.0, $back ? 'SOLICITUD DE VENTA - REVERSO' : 'SOLICITUD DE VENTA'",
-              "$this->text(self::MARGIN + 90.0, 58.0, $back ? 'SOLICITUD DE VENTA - REVERSO' : 'SOLICITUD DE VENTA'"
-          )
-          lib_path.write_text(lib_source, encoding='utf-8')
-
-          layout_path = Path('_deploy/api/solicitud-venta/pdf-final-layout-v3.php')
-          layout_source = layout_path.read_text(encoding='utf-8')
-          marker = "$pdf = new SvPdfDocumento($folio);"
-          if marker not in layout_source:
-              raise RuntimeError('No se encontro el constructor del PDF V3 para insertar branding.')
-          layout_source = layout_source.replace(marker, marker + "\n    svPdfAgregarLogoJdjp($pdf);", 1)
-          layout_source = re.sub(
-              r'(?m)^(\s*)svPdfV3NuevaPagina\(\$pdf\);\s*$',
-              lambda m: f"{m.group(1)}svPdfV3NuevaPagina($pdf);\n{m.group(1)}svPdfAgregarLogoJdjp($pdf);",
-              layout_source,
-          )
-          old_consent = 'El cliente manifiesta su conformidad con la información capturada en esta Solicitud de Venta y con las condiciones, importes, componentes y servicios asentados en el expediente digital del folio.'
-          new_consent = 'El cliente manifiesta su conformidad con la información capturada en esta Solicitud de Venta y con las condiciones, importes, componentes y servicios asentados en el expediente digital del folio. Asimismo, declara haber leído el Aviso de Privacidad de MEGUESA, S.A. de C.V. y autoriza el tratamiento de sus datos personales y, cuando corresponda, datos patrimoniales o financieros para elaborar, evaluar, formalizar, administrar y dar seguimiento a esta Solicitud de Venta. Aviso de Privacidad versión 11/09/2026; consentimiento solicitud-venta-2026-09-11-v1.'
-          if old_consent not in layout_source:
-              raise RuntimeError('No se encontro la declaracion de conformidad para agregar privacidad.')
-          layout_source = layout_source.replace(old_consent, new_consent, 1)
-          layout_path.write_text(layout_source, encoding='utf-8')
-          PY
-
-          cp _deploy/api/solicitud-venta/_common.php /tmp/solicitud-common-session.php
-          (
-            cd _deploy
-            python3 scripts/prepare_solicitud_portal_session.py
-          )
-          cp /tmp/solicitud-common-session.php _deploy/api/solicitud-venta/_common.php
-
-          grep -q '__solicitudComponentesModuloActivo' _deploy/solicitud-venta/componentes.js
-          grep -q '__solicitudFirmaRemotaPreflightActivo' _deploy/solicitud-venta/firma-remota-preflight.js
-          grep -q '__solicitudFinanciamientoIntegracionActiva' _deploy/solicitud-venta/financiamiento-integracion.js
-          grep -q '__solicitudFinanciamientoBridgeActivo' _deploy/solicitud-venta/financiamiento-bridge.js
-          grep -q '__solicitudConsentimientoFetchEnvuelto' _deploy/solicitud-venta/consentimiento-privacidad.js
-          grep -q 'CONSENTIMIENTO_PRIVACIDAD_SOLICITUD_VENTA' _deploy/api/solicitud-venta/consentimiento-privacidad.php
-          grep -q 'consentimiento-remoto.php' _deploy/firma/consentimiento.js
-          grep -q 'solicitud-venta-2026-09-11-v1' _deploy/firma/index.html
-          grep -q 'Aviso de Privacidad versión 11/09/2026' _deploy/api/solicitud-venta/pdf-final-layout-v3.php
-          grep -q 'CORRIDA_FINANCIERA' _deploy/api/solicitud-venta/archivos.php
-          grep -q 'VALIDAR_ENDPOINT' _deploy/solicitud-venta/correccion-validacion.js
-          grep -q 'btnSolicitudInicio' _deploy/solicitud-venta/index.html
-          grep -q 'referenciaSolicitada' _deploy/solicitud-venta/persistencia.js
-          grep -Eq 'reconstruirEstado(Legado|DesdeFields)' _deploy/api/solicitud-venta/estado-borrador.php
-          grep -q 'PORTAL_SESSION' _deploy/api/solicitud-venta/_common.php
-          grep -q 'session_name' _deploy/api/solicitud-venta/_common.php
-          grep -q 'svPdfAgregarLogoJdjp' _deploy/api/solicitud-venta/pdf-final-layout-v3.php
-          grep -q '/Count 1' _deploy/api/solicitud-venta/identificaciones-pdf.php
-
-          if grep -qi 'msal-browser' _deploy/solicitud-venta/index.html; then
-            echo 'ERROR: la interfaz aun intenta cargar MSAL independiente.'
-            exit 1
-          fi
-
-          echo "Paquete de produccion construido exclusivamente desde Solicitud-Venta."
+          python3 tools/build_solicitud_package.py
 
       - name: Preparar PHP 8.2
         uses: shivammathur/setup-php@v2
