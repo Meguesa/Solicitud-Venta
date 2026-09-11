@@ -1,0 +1,184 @@
+name: Finalizar fuentes sin parches de build
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/finalizar-fuentes-sin-parches.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    name: Pasar componentes y PDF a codigo fuente definitivo
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Preparar PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: json, openssl, curl, mbstring, fileinfo
+          coverage: none
+
+      - name: Incorporar ultimas transformaciones al codigo fuente
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('.')
+
+          def write(path: Path, text: str) -> None:
+              path.write_text(text, encoding='utf-8')
+
+          # 1) componentes.js: el guard contra carga duplicada vive ya en fuente.
+          componentes = root / 'src/js/componentes.js'
+          source = componentes.read_text(encoding='utf-8')
+          guard = "  if (window.__solicitudComponentesModuloActivo) return;\n  window.__solicitudComponentesModuloActivo = true;\n"
+          if '__solicitudComponentesModuloActivo' not in source:
+              marker = '(() => {\n'
+              if source.count(marker) < 1:
+                  raise RuntimeError('No se encontro el inicio esperado de componentes.js')
+              source = source.replace(marker, marker + guard, 1)
+              write(componentes, source)
+
+          # 2) pdf-final-lib.php: la posicion definitiva del encabezado deja espacio al logo.
+          pdf_lib = root / 'api/solicitud-venta/pdf-final-lib.php'
+          source = pdf_lib.read_text(encoding='utf-8')
+          replacements = [
+              (
+                  "$this->text(self::MARGIN + 10.0, 41.0, 'JARDINES DE JUAN PABLO'",
+                  "$this->text(self::MARGIN + 90.0, 41.0, 'JARDINES DE JUAN PABLO'",
+              ),
+              (
+                  "$this->text(self::MARGIN + 10.0, 58.0, $back ? 'SOLICITUD DE VENTA - REVERSO' : 'SOLICITUD DE VENTA'",
+                  "$this->text(self::MARGIN + 90.0, 58.0, $back ? 'SOLICITUD DE VENTA - REVERSO' : 'SOLICITUD DE VENTA'",
+              ),
+          ]
+          for old, new in replacements:
+              if new in source:
+                  continue
+              if source.count(old) != 1:
+                  raise RuntimeError(f'No se encontro exactamente una vez el encabezado PDF: {old}')
+              source = source.replace(old, new, 1)
+          write(pdf_lib, source)
+
+          # 3) pdf-final-layout-v3.php: branding y consentimiento quedan en fuente.
+          layout = root / 'api/solicitud-venta/pdf-final-layout-v3.php'
+          source = layout.read_text(encoding='utf-8')
+
+          if 'svPdfAgregarLogoJdjp($pdf);' not in source:
+              constructor = '    $pdf = new SvPdfDocumento($folio);\n'
+              if source.count(constructor) != 1:
+                  raise RuntimeError('No se encontro constructor unico de SvPdfDocumento en layout V3')
+              source = source.replace(
+                  constructor,
+                  constructor + '    svPdfAgregarLogoJdjp($pdf);\n',
+                  1,
+              )
+              source, count_pages = re.subn(
+                  r'(?m)^(\s*)svPdfV3NuevaPagina\(\$pdf\);\s*$',
+                  lambda m: f"{m.group(1)}svPdfV3NuevaPagina($pdf);\n{m.group(1)}svPdfAgregarLogoJdjp($pdf);",
+                  source,
+              )
+              if count_pages < 1:
+                  raise RuntimeError('No se encontro ninguna pagina adicional para aplicar branding PDF')
+
+          old_consent = (
+              "    $pdf->note('El cliente manifiesta su conformidad con la información capturada en esta Solicitud de Venta "
+              "y con las condiciones, importes, componentes y servicios asentados en el expediente digital del folio.');"
+          )
+          new_consent = (
+              "    $pdf->note('El cliente manifiesta su conformidad con la información capturada en esta Solicitud de Venta "
+              "y con las condiciones, importes, componentes y servicios asentados en el expediente digital del folio. "
+              "Asimismo, declara haber leído el Aviso de Privacidad de MEGUESA, S.A. de C.V. y autoriza el tratamiento de sus datos personales "
+              "y, cuando corresponda, datos patrimoniales o financieros para elaborar, evaluar, formalizar, administrar y dar seguimiento a esta Solicitud de Venta. "
+              "Aviso de Privacidad versión 11/09/2026; consentimiento solicitud-venta-2026-09-11-v1.');"
+          )
+          if new_consent not in source:
+              if source.count(old_consent) != 1:
+                  raise RuntimeError('No se encontro la declaracion de conformidad original en layout V3')
+              source = source.replace(old_consent, new_consent, 1)
+          write(layout, source)
+
+          # 4) El builder deja de modificar JavaScript o PHP; solo copia y valida.
+          builder = root / 'tools/build_solicitud_package.py'
+          source = builder.read_text(encoding='utf-8')
+          start = source.find('\ndef prepare_componentes() -> None:\n')
+          end = source.find('\ndef validate_package() -> None:\n', start)
+          if start >= 0 and end >= 0:
+              source = source[:start] + '\n' + source[end:]
+          elif 'def prepare_componentes()' in source or 'def prepare_pdf()' in source:
+              raise RuntimeError('No se pudo retirar el bloque de transformaciones del builder')
+
+          source = source.replace('    prepare_componentes()\n', '')
+          source = source.replace('    prepare_pdf()\n', '')
+
+          check_marker = '        (DEPLOY / "solicitud-venta/componentes.js", "__solicitudComponentesModuloActivo"),\n'
+          header_checks = (
+              '        (DEPLOY / "api/solicitud-venta/pdf-final-lib.php", "self::MARGIN + 90.0, 41.0"),\n'
+              '        (DEPLOY / "api/solicitud-venta/pdf-final-lib.php", "self::MARGIN + 90.0, 58.0"),\n'
+          )
+          if 'self::MARGIN + 90.0, 41.0' not in source:
+              if check_marker not in source:
+                  raise RuntimeError('No se encontro punto para agregar validaciones del encabezado PDF')
+              source = source.replace(check_marker, check_marker + header_checks, 1)
+
+          for forbidden in ['def prepare_componentes()', 'def prepare_pdf()', 'prepare_componentes()', 'prepare_pdf()']:
+              if forbidden in source:
+                  raise RuntimeError(f'El builder aun contiene transformacion: {forbidden}')
+          write(builder, source)
+
+          # 5) Documentacion: el builder ya no prepara comportamiento.
+          readme = root / 'README.md'
+          source = readme.read_text(encoding='utf-8')
+          source = source.replace(
+              'Este script crea `_deploy/`, copia `src/js` y `src/css` a las rutas publicas existentes, prepara los assets de produccion, valida marcadores criticos y deja listo el paquete para publicacion.',
+              'Este script crea `_deploy/`, copia el codigo fuente a las rutas publicas existentes, valida marcadores criticos y deja listo el paquete para publicacion. No modifica la logica JavaScript ni PHP durante el build.',
+          )
+          write(readme, source)
+
+          # Barreras de integridad antes de ejecutar el builder.
+          assert '__solicitudComponentesModuloActivo' in componentes.read_text(encoding='utf-8')
+          assert "self::MARGIN + 90.0, 41.0" in pdf_lib.read_text(encoding='utf-8')
+          assert 'svPdfAgregarLogoJdjp($pdf);' in layout.read_text(encoding='utf-8')
+          assert 'Aviso de Privacidad versión 11/09/2026' in layout.read_text(encoding='utf-8')
+          assert 'def prepare_componentes()' not in builder.read_text(encoding='utf-8')
+          assert 'def prepare_pdf()' not in builder.read_text(encoding='utf-8')
+          PY
+
+      - name: Construir paquete sin transformaciones de runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/build_solicitud_package.py
+
+      - name: Validar PHP resultante
+        shell: bash
+        run: |
+          set -euo pipefail
+          find _deploy/api/solicitud-venta _deploy/solicitud-venta _deploy/firma -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Retirar workflow temporal y guardar migracion
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/finalizar-fuentes-sin-parches.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Eliminar transformaciones restantes del build"
+          git push origin HEAD:main
