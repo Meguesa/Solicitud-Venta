@@ -296,8 +296,8 @@ final class SvPdfDocumento
         $this->y = 84.0;
 
         $this->rectStrokeTop(self::MARGIN, 23.0, self::WIDTH - (2 * self::MARGIN), 52.0, [0.10, 0.10, 0.10], 0.9);
-        $this->text(self::MARGIN + 10.0, 41.0, 'JARDINES DE JUAN PABLO', 10.2, true, [0.05, 0.05, 0.05]);
-        $this->text(self::MARGIN + 10.0, 58.0, $back ? 'SOLICITUD DE VENTA - REVERSO' : 'SOLICITUD DE VENTA', 15.0, true, [0.05, 0.05, 0.05]);
+        $this->text(self::MARGIN + 90.0, 41.0, 'JARDINES DE JUAN PABLO', 10.2, true, [0.05, 0.05, 0.05]);
+        $this->text(self::MARGIN + 90.0, 58.0, $back ? 'SOLICITUD DE VENTA - REVERSO' : 'SOLICITUD DE VENTA', 15.0, true, [0.05, 0.05, 0.05]);
         $this->text(self::WIDTH - self::MARGIN - 155.0, 41.0, 'FOLIO', 6.8, true, [0.25, 0.25, 0.25]);
         $this->text(self::WIDTH - self::MARGIN - 155.0, 57.0, $this->folio, 10.0, true, [0.05, 0.05, 0.05]);
         $this->text(self::WIDTH - self::MARGIN - 65.0, 69.0, 'ORIGINAL DIGITAL', 5.8, false, [0.35, 0.35, 0.35]);

@@ -94,7 +94,7 @@ La construccion de produccion esta centralizada en:
 
 `tools/build_solicitud_package.py`
 
-Este script crea `_deploy/`, copia `src/js` y `src/css` a las rutas publicas existentes, prepara los assets de produccion, valida marcadores criticos y deja listo el paquete para publicacion. La autenticacion compartida del Portal, la recuperacion de borradores y la firma remota viven directamente en el codigo fuente; no existe una capa de normalizacion de runtime.
+Este script crea `_deploy/`, copia el codigo fuente a las rutas publicas existentes, valida marcadores criticos y deja listo el paquete para publicacion. No modifica la logica JavaScript ni PHP durante el build. La autenticacion compartida del Portal, la recuperacion de borradores y la firma remota viven directamente en el codigo fuente; no existe una capa de normalizacion de runtime.
 
 El workflow valida la estructura, ejecuta el builder, valida PHP y publica por FTPS mediante `tools/deploy_solicitud_ftps.sh`.
 

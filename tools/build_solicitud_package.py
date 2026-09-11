@@ -110,80 +110,12 @@ def validate_index_source() -> None:
         )
 
 
-def prepare_componentes() -> None:
-    path = DEPLOY / "solicitud-venta" / "componentes.js"
-    source = path.read_text(encoding="utf-8")
-    sentinel = "window.__solicitudComponentesModuloActivo"
-    if sentinel in source:
-        return
-
-    marker = "(() => {"
-    if marker not in source:
-        raise RuntimeError("No se encontro el inicio esperado de componentes.js.")
-    replacement = (
-        "(() => {\n"
-        "  if (window.__solicitudComponentesModuloActivo) return;\n"
-        "  window.__solicitudComponentesModuloActivo = true;"
-    )
-    path.write_text(source.replace(marker, replacement, 1), encoding="utf-8")
-
-
-def prepare_pdf() -> None:
-    lib_path = DEPLOY / "api" / "solicitud-venta" / "pdf-final-lib.php"
-    lib_source = lib_path.read_text(encoding="utf-8")
-    lib_source = lib_source.replace(
-        "$this->text(self::MARGIN + 10.0, 41.0, 'JARDINES DE JUAN PABLO'",
-        "$this->text(self::MARGIN + 90.0, 41.0, 'JARDINES DE JUAN PABLO'",
-    )
-    lib_source = lib_source.replace(
-        "$this->text(self::MARGIN + 10.0, 58.0, $back ? 'SOLICITUD DE VENTA - REVERSO' : 'SOLICITUD DE VENTA'",
-        "$this->text(self::MARGIN + 90.0, 58.0, $back ? 'SOLICITUD DE VENTA - REVERSO' : 'SOLICITUD DE VENTA'",
-    )
-    lib_path.write_text(lib_source, encoding="utf-8")
-
-    layout_path = DEPLOY / "api" / "solicitud-venta" / "pdf-final-layout-v3.php"
-    layout_source = layout_path.read_text(encoding="utf-8")
-
-    if "svPdfAgregarLogoJdjp($pdf);" not in layout_source:
-        marker = "$pdf = new SvPdfDocumento($folio);"
-        if marker not in layout_source:
-            raise RuntimeError("No se encontro el constructor del PDF V3 para insertar branding.")
-        layout_source = layout_source.replace(
-            marker,
-            marker + "\n    svPdfAgregarLogoJdjp($pdf);",
-            1,
-        )
-        layout_source = re.sub(
-            r"(?m)^(\s*)svPdfV3NuevaPagina\(\$pdf\);\s*$",
-            lambda match: (
-                f"{match.group(1)}svPdfV3NuevaPagina($pdf);\n"
-                f"{match.group(1)}svPdfAgregarLogoJdjp($pdf);"
-            ),
-            layout_source,
-        )
-
-    old_consent = (
-        "El cliente manifiesta su conformidad con la información capturada en esta Solicitud de Venta "
-        "y con las condiciones, importes, componentes y servicios asentados en el expediente digital del folio."
-    )
-    new_consent = (
-        old_consent
-        + " Asimismo, declara haber leído el Aviso de Privacidad de MEGUESA, S.A. de C.V. y autoriza "
-        "el tratamiento de sus datos personales y, cuando corresponda, datos patrimoniales o financieros "
-        "para elaborar, evaluar, formalizar, administrar y dar seguimiento a esta Solicitud de Venta. "
-        "Aviso de Privacidad versión 11/09/2026; consentimiento solicitud-venta-2026-09-11-v1."
-    )
-    if new_consent not in layout_source:
-        if old_consent not in layout_source:
-            raise RuntimeError("No se encontro la declaracion de conformidad para agregar privacidad.")
-        layout_source = layout_source.replace(old_consent, new_consent, 1)
-
-    layout_path.write_text(layout_source, encoding="utf-8")
-
 
 def validate_package() -> None:
     checks = [
         (DEPLOY / "solicitud-venta/componentes.js", "__solicitudComponentesModuloActivo"),
+        (DEPLOY / "api/solicitud-venta/pdf-final-lib.php", "self::MARGIN + 90.0, 41.0"),
+        (DEPLOY / "api/solicitud-venta/pdf-final-lib.php", "self::MARGIN + 90.0, 58.0"),
         (DEPLOY / "solicitud-venta/firma-remota-preflight.js", "__solicitudFirmaRemotaPreflightActivo"),
         (DEPLOY / "solicitud-venta/financiamiento-integracion.js", "__solicitudFinanciamientoIntegracionActiva"),
         (DEPLOY / "solicitud-venta/financiamiento-bridge.js", "__solicitudFinanciamientoBridgeActivo"),
@@ -238,8 +170,6 @@ def build() -> None:
     copy_tree(ROOT / "api" / "solicitud-venta", DEPLOY / "api" / "solicitud-venta")
     copy_tree(ROOT / "firma", DEPLOY / "firma")
 
-    prepare_componentes()
-    prepare_pdf()
     validate_package()
 
 

@@ -1,4 +1,6 @@
 (() => {
+  if (window.__solicitudComponentesModuloActivo) return;
+  window.__solicitudComponentesModuloActivo = true;
   let inicializado = false;
   let consecutivo = 0;
   const componentes = [];

@@ -131,6 +131,7 @@ function svPdfConstruirFinalFisicoV3(
     if ($clienteEstado !== '') $cliente = preg_replace('/\s+/u', ' ', $clienteEstado) ?: $clienteEstado;
 
     $pdf = new SvPdfDocumento($folio);
+    svPdfAgregarLogoJdjp($pdf);
     $grid = new SvPdfFisicoGrid($pdf);
 
     svPdfV2Componentes($grid, $grupo);
@@ -179,6 +180,7 @@ function svPdfConstruirFinalFisicoV3(
 
     if (in_array($tipoPrincipal,['LOTE','NICHO'],true)) {
         svPdfV3NuevaPagina($pdf);
+        svPdfAgregarLogoJdjp($pdf);
         $grid = new SvPdfFisicoGrid($pdf);
         svPdfV3Section($grid,'Información Financiera y de Crédito');
         $grid->row([['Banco 1 · Nombre',svPdfFisicoValor($controles,'banco1Nombre',$principal,['Banco1_Nombre','Banco_1_Nombre'])],['Tipo de cuenta',svPdfFisicoValor($controles,'banco1TipoCuenta',$principal,['Banco1_Tipo_Cuenta','Banco_1_Tipo_Cuenta'])],['Número de cuenta',svPdfFisicoValor($controles,'banco1NumeroCuenta',$principal,['Banco1_Numero_Cuenta','Banco_1_Numero_Cuenta'])]],[1.2,1,1.2]);
@@ -233,7 +235,7 @@ function svPdfConstruirFinalFisicoV3(
         svPdfV3ApprovalBox($pdf,'Vo.Bo. de Cobranza','APROBADO',$cobranzaPor,svPdfFecha($cobranzaCuando),$firmaVoboCobranza);
     }
     svPdfV3Section($grid,'Declaración de conformidad');
-    $pdf->note('El cliente manifiesta su conformidad con la información capturada en esta Solicitud de Venta y con las condiciones, importes, componentes y servicios asentados en el expediente digital del folio.');
+    $pdf->note('El cliente manifiesta su conformidad con la información capturada en esta Solicitud de Venta y con las condiciones, importes, componentes y servicios asentados en el expediente digital del folio. Asimismo, declara haber leído el Aviso de Privacidad de MEGUESA, S.A. de C.V. y autoriza el tratamiento de sus datos personales y, cuando corresponda, datos patrimoniales o financieros para elaborar, evaluar, formalizar, administrar y dar seguimiento a esta Solicitud de Venta. Aviso de Privacidad versión 11/09/2026; consentimiento solicitud-venta-2026-09-11-v1.');
     svPdfV3Section($grid,'Firmas de conformidad');
     $pdf->signaturePair($firmaCliente,$firmaVendedor,$cliente,$vendedor);
     svPdfV3Section($grid,'Control del documento');
