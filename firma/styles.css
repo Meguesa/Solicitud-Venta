@@ -125,12 +125,15 @@ body {
   gap: 10px;
   align-items: flex-start;
   padding: 14px;
+  border: 1px solid #c7d8e6;
   border-radius: 12px;
   background: #f4f8fb;
-  margin-bottom: 22px;
-  line-height: 1.5;
+  margin-bottom: 8px;
+  line-height: 1.55;
 }
 .consent-line input { margin-top: 4px; width: 20px; height: 20px; flex: 0 0 auto; }
+.consent-line a { color: #174f7c; font-weight: 700; text-underline-offset: 2px; }
+.consent-version { margin: 0 0 24px; color: #6f665f; font-size: 12px; }
 
 .signature-canvas {
   display: block;
@@ -160,6 +163,10 @@ button {
 button:disabled { opacity: 0.55; cursor: wait; }
 button.primary { background: #225b8a; color: #fff; }
 button.secondary { background: #eee8e1; color: #382d27; }
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+.signature-canvas:focus-visible { outline: 3px solid #f0ad1f; outline-offset: 3px; }
 
 .form-message { min-height: 22px; margin: 12px 0 0; }
 .form-message.error { color: #9b2525; }
