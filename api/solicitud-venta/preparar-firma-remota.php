@@ -56,11 +56,29 @@ try {
     $fields = is_array($principal['fields'] ?? null) ? $principal['fields'] : [];
     pfrValidarPrincipal($fields, $folio, $correoUsuario);
 
+    // field_103 es un indicador derivado. En el flujo remoto la firma se sube
+    // primero como FIRMA_VENDEDOR.png y, acto seguido, se ejecuta este preflight.
+    // Si SharePoint aun conserva PENDIENTE por una sincronizacion incompleta,
+    // verificamos la evidencia persistida en Expedientes_Ventas antes de bloquear.
+    $firmaVendedor = strtoupper(trim((string) ($fields['field_103'] ?? '')));
+    if ($firmaVendedor !== 'FIRMADO') {
+        $driveId = pfrObtenerDriveExpedientes($token, $config['siteId']);
+        if (!pfrExisteFirmaVendedor($token, $driveId, $folio)) {
+            svResponderError(409, 'SELLER_SIGNATURE_REQUIRED', 'La firma del vendedor debe estar guardada antes de enviar al cliente.');
+        }
+    }
+
     $url = 'https://graph.microsoft.com/v1.0/sites/' . rawurlencode($config['siteId'])
         . '/lists/' . rawurlencode($config['listId'])
         . '/items/' . rawurlencode($itemIdReal)
         . '/fields';
-    $body = json_encode(['field_102' => 'PENDIENTE'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    // Repara el indicador de la firma al mismo tiempo que prepara la firma del
+    // titular. De esta manera iniciar-firma-remota.php recibe un estado coherente.
+    $body = json_encode([
+        'field_102' => 'PENDIENTE',
+        'field_103' => 'FIRMADO',
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     if (!is_string($body)) throw new RuntimeException('No fue posible preparar la actualizacion del titular.');
 
     svCurlJson($url, 'PATCH', [
@@ -157,9 +175,49 @@ function pfrValidarPrincipal(array $fields, string $folio, string $correoUsuario
     if ($estatus !== 'BORRADOR') {
         svResponderError(409, 'REQUEST_NOT_DRAFT', 'La solicitud ya no se encuentra en BORRADOR.');
     }
+}
 
-    $firmaVendedor = strtoupper(trim((string) ($fields['field_103'] ?? '')));
-    if ($firmaVendedor !== 'FIRMADO') {
-        svResponderError(409, 'SELLER_SIGNATURE_REQUIRED', 'La firma del vendedor debe estar guardada antes de enviar al cliente.');
+function pfrObtenerDriveExpedientes(string $token, string $siteId): string
+{
+    $url = 'https://graph.microsoft.com/v1.0/sites/' . rawurlencode($siteId) . '/drives?$select=id,name';
+    $drives = svCurlJson($url, 'GET', [
+        'Authorization: Bearer ' . $token,
+        'Accept: application/json',
+    ]);
+
+    foreach (($drives['value'] ?? []) as $drive) {
+        if (!is_array($drive)) continue;
+        $nombre = strtolower(trim((string) ($drive['name'] ?? '')));
+        if (!in_array($nombre, ['expedientes_ventas', 'expedientes ventas'], true)) continue;
+        $id = trim((string) ($drive['id'] ?? ''));
+        if ($id !== '') return $id;
     }
+
+    throw new RuntimeException('No se encontro la biblioteca Expedientes_Ventas.');
+}
+
+function pfrExisteFirmaVendedor(string $token, string $driveId, string $folio): bool
+{
+    $url = 'https://graph.microsoft.com/v1.0/drives/' . rawurlencode($driveId)
+        . '/root:/' . rawurlencode($folio)
+        . ':/children?$select=id,name,size&$top=100';
+
+    try {
+        $respuesta = svCurlJson($url, 'GET', [
+            'Authorization: Bearer ' . $token,
+            'Accept: application/json',
+        ]);
+    } catch (Throwable $error) {
+        error_log('Solicitud Venta verificar FIRMA_VENDEDOR.png: ' . $error->getMessage());
+        return false;
+    }
+
+    foreach (($respuesta['value'] ?? []) as $item) {
+        if (!is_array($item)) continue;
+        $nombre = strtoupper(trim((string) ($item['name'] ?? '')));
+        $size = (int) ($item['size'] ?? 0);
+        if ($nombre === 'FIRMA_VENDEDOR.PNG' && $size > 0) return true;
+    }
+
+    return false;
 }
