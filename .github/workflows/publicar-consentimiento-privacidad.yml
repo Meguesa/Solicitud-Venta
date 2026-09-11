@@ -1,0 +1,38 @@
+name: Publicar consentimiento de privacidad
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'consentimiento-privacidad.js'
+      - 'firma/index.html'
+      - 'firma/firma.js'
+      - 'firma/consentimiento.js'
+      - 'firma/styles.css'
+      - 'api/solicitud-venta/consentimiento.php'
+      - 'api/solicitud-venta/consentimiento-remoto.php'
+      - 'api/solicitud-venta/consentimiento-privacidad.php'
+      - '.github/workflows/publicar-solicitud-cpanel.yml'
+      - '.github/workflows/publicar-consentimiento-privacidad.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch:
+    name: Lanzar despliegue completo de Solicitud
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar workflow canonico
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run publicar-solicitud-cpanel.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref main \
+            -f alcance=completo
+          echo "Despliegue completo de Solicitud de Venta solicitado."
