@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'consentimiento-privacidad.js'
+      - 'documentacion-fix.js'
       - 'firma/index.html'
       - 'firma/firma.js'
       - 'firma/consentimiento.js'
