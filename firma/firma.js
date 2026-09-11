@@ -2,6 +2,8 @@
   const token = new URLSearchParams(location.search).get("token") || "";
   const canvas = document.getElementById("firmaCanvas");
   const ctx = canvas.getContext("2d");
+  const CONSENTIMIENTO_VERSION = "solicitud-venta-2026-09-11-v1";
+  const AVISO_PRIVACIDAD_VERSION = "2026-09-11";
   let dibujando = false;
   let tieneFirma = false;
   let cargada = false;
@@ -112,29 +114,21 @@
     const section = document.getElementById("detalleCompletoSection");
     const container = document.getElementById("detalleCompleto");
     if (!section || !container) return;
-
     container.textContent = "";
-    if (!Array.isArray(secciones) || !secciones.length) {
-      section.hidden = true;
-      return;
-    }
-
+    if (!Array.isArray(secciones) || !secciones.length) { section.hidden = true; return; }
     secciones.forEach((seccion) => {
       if (!Array.isArray(seccion?.campos) || !seccion.campos.length) return;
       const article = document.createElement("article");
       article.className = "detail-section";
-
       const title = document.createElement("h3");
       title.textContent = seccion.titulo || "Información";
       article.appendChild(title);
-
       const grid = document.createElement("div");
       grid.className = "detail-grid";
       seccion.campos.forEach((campo) => grid.appendChild(crearCampoDetalle(campo)));
       article.appendChild(grid);
       container.appendChild(article);
     });
-
     section.hidden = !container.children.length;
   }
 
@@ -160,7 +154,6 @@
   function crearComponente(item) {
     const box = document.createElement("article");
     box.className = "component-item";
-
     const title = document.createElement("div");
     title.className = "component-title";
     const strong = document.createElement("strong");
@@ -169,7 +162,6 @@
     amount.textContent = moneda(item.monto);
     title.append(strong, amount);
     box.appendChild(title);
-
     const details = document.createElement("div");
     details.className = "component-details";
     agregarDato(details, "Operación", item.operacion);
@@ -207,21 +199,24 @@
   async function firmar() {
     if (!cargada) return;
     if (!document.getElementById("consentimiento").checked) {
-      return mostrarMensaje("Debes aceptar la solicitud antes de firmar.", "error");
+      return mostrarMensaje("Debes leer y aceptar el Aviso de Privacidad antes de firmar.", "error");
     }
     if (!tieneFirma) return mostrarMensaje("Firma dentro del recuadro antes de continuar.", "error");
 
     const button = document.getElementById("btnFirmar");
     button.disabled = true;
-    mostrarMensaje("Registrando firma...");
+    mostrarMensaje("Registrando firma y consentimiento...");
     try {
       const data = await llamarApi("firmar", {
         consentimiento: true,
+        consentimientoPrivacidad: true,
+        consentimientoVersion: CONSENTIMIENTO_VERSION,
+        avisoPrivacidadVersion: AVISO_PRIVACIDAD_VERSION,
         firmaDataUrl: canvas.toDataURL("image/png")
       });
       document.getElementById("signatureContent").hidden = true;
       document.getElementById("signedPanel").hidden = false;
-      document.getElementById("signedMessage").textContent = `La firma de la solicitud ${data.folio} quedó registrada correctamente. La solicitud continuará al proceso de Vo.Bo.`;
+      document.getElementById("signedMessage").textContent = `La firma y el consentimiento de la solicitud ${data.folio} quedaron registrados correctamente. La solicitud continuará al proceso de Vo.Bo.`;
     } catch (error) {
       button.disabled = false;
       mostrarMensaje(error.message || String(error), "error");
