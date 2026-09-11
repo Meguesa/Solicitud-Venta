@@ -1,29 +1,18 @@
-name: Publicar consentimiento de privacidad
+name: Publicar cambios relevantes de Solicitud
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'consentimiento-privacidad.js'
-      - 'documentacion.js'
-      - 'firma-remota.js'
-      - 'firma-remota-preflight.js'
-      - 'firma/index.html'
-      - 'firma/firma.js'
-      - 'firma/consentimiento.js'
-      - 'firma/styles.css'
-      - 'api/solicitud-venta/consentimiento.php'
-      - 'api/solicitud-venta/consentimiento-remoto.php'
-      - 'api/solicitud-venta/consentimiento-privacidad.php'
-      - 'api/solicitud-venta/preparar-firma-remota.php'
-      - 'api/solicitud-venta/iniciar-firma-remota.php'
-      - 'api/solicitud-venta/pdf-preliminar.php'
-      - 'api/solicitud-venta/pdf-final-layout.php'
-      - 'api/solicitud-venta/pdf-final-layout-v2.php'
-      - 'api/solicitud-venta/pdf-final-layout-v3.php'
-      - 'api/solicitud-venta/pdf-final-lib.php'
-      - 'api/solicitud-venta/pdf-branding.php'
+      - 'src/js/**'
+      - 'src/css/**'
+      - 'firma/**'
+      - 'api/solicitud-venta/**'
+      - 'index.php'
+      - 'index.html'
+      - 'tools/build_solicitud_package.py'
+      - 'tools/deploy_solicitud_ftps.sh'
       - '.github/workflows/publicar-solicitud-cpanel.yml'
       - '.github/workflows/publicar-consentimiento-privacidad.yml'
   workflow_dispatch:

@@ -37,17 +37,21 @@ jobs:
           set -euo pipefail
           test -s index.php
           test -s index.html
-          test -s app.js
-          test -s auth.js
-          test -s config.js
-          test -s styles.css
-          test -s persistencia.js
-          test -s firma-remota.js
-          test -s firma-remota-preflight.js
-          test -s correccion.js
-          test -s correccion-validacion.js
-          test -s documentacion.js
-          test -s consentimiento-privacidad.js
+          test -d src/js
+          test -d src/css
+          test -s src/js/app.js
+          test -s src/js/auth.js
+          test -s src/js/config.js
+          test -s src/js/persistencia.js
+          test -s src/js/firma-remota.js
+          test -s src/js/firma-remota-preflight.js
+          test -s src/js/correccion.js
+          test -s src/js/correccion-validacion.js
+          test -s src/js/documentacion.js
+          test -s src/js/consentimiento-privacidad.js
+          test -s src/css/styles.css
+          test -s src/css/wizard.css
+          test -s src/css/firma-remota.css
           test -d inicio
           test -d vobo
           test -d api/solicitud-venta
@@ -64,8 +68,8 @@ jobs:
           test -s firma/index.html
           test -s firma/firma.js
           test -s tools/build_solicitud_package.py
-          test -s tools/normalize_runtime.py
           test -s tools/deploy_solicitud_ftps.sh
+          test ! -e tools/normalize_runtime.py
 
           count_php="$(find api/solicitud-venta -maxdepth 1 -type f -name '*.php' | wc -l | tr -d ' ')"
           echo "Endpoints PHP disponibles: ${count_php}"

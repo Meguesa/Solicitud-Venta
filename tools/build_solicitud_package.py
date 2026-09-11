@@ -9,34 +9,34 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 DEPLOY = ROOT / "_deploy"
 
-UI_FILES = [
-    "index.php",
-    "index.html",
-    "styles.css",
-    "wizard.css",
-    "config.js",
-    "auth.js",
-    "app.js",
-    "componentes.js",
-    "componentes-sync.js",
-    "correccion-validacion.js",
-    "consentimiento-privacidad.js",
-    "firma-remota.js",
-    "firma-remota-seguimiento.js",
-    "firma-remota-gestion.js",
-    "firma-remota-preflight.js",
-    "correccion.js",
-    "firma-remota.css",
-    "extras.js",
-    "documentos-identificacion-doble.js",
-    "documentacion.js",
-    "persistencia.js",
-    "financiamiento-integracion.js",
-    "financiamiento-bridge.js",
-    "sucursales-componentes.js",
-    "wizard.js",
-    "resumen-directo.js",
-]
+UI_FILE_MAP = {
+    "index.php": "index.php",
+    "index.html": "index.html",
+    "src/css/styles.css": "styles.css",
+    "src/css/wizard.css": "wizard.css",
+    "src/css/firma-remota.css": "firma-remota.css",
+    "src/js/config.js": "config.js",
+    "src/js/auth.js": "auth.js",
+    "src/js/app.js": "app.js",
+    "src/js/componentes.js": "componentes.js",
+    "src/js/componentes-sync.js": "componentes-sync.js",
+    "src/js/correccion-validacion.js": "correccion-validacion.js",
+    "src/js/consentimiento-privacidad.js": "consentimiento-privacidad.js",
+    "src/js/firma-remota.js": "firma-remota.js",
+    "src/js/firma-remota-seguimiento.js": "firma-remota-seguimiento.js",
+    "src/js/firma-remota-gestion.js": "firma-remota-gestion.js",
+    "src/js/firma-remota-preflight.js": "firma-remota-preflight.js",
+    "src/js/correccion.js": "correccion.js",
+    "src/js/extras.js": "extras.js",
+    "src/js/documentos-identificacion-doble.js": "documentos-identificacion-doble.js",
+    "src/js/documentacion.js": "documentacion.js",
+    "src/js/persistencia.js": "persistencia.js",
+    "src/js/financiamiento-integracion.js": "financiamiento-integracion.js",
+    "src/js/financiamiento-bridge.js": "financiamiento-bridge.js",
+    "src/js/sucursales-componentes.js": "sucursales-componentes.js",
+    "src/js/wizard.js": "wizard.js",
+    "src/js/resumen-directo.js": "resumen-directo.js",
+}
 
 MODULES = [
     "componentes.js",
@@ -59,7 +59,7 @@ MODULES = [
     "documentacion.js",
 ]
 
-CACHE_VERSION = "20260911-cleanup-2"
+CACHE_VERSION = "20260911-cleanup-3"
 
 
 def require_file(path: Path) -> None:
@@ -202,7 +202,6 @@ def prepare_pdf() -> None:
     layout_path.write_text(layout_source, encoding="utf-8")
 
 
-
 def validate_package() -> None:
     checks = [
         (DEPLOY / "solicitud-venta/componentes.js", "__solicitudComponentesModuloActivo"),
@@ -252,10 +251,10 @@ def build() -> None:
     (DEPLOY / "api").mkdir(parents=True, exist_ok=True)
     (DEPLOY / "firma").mkdir(parents=True, exist_ok=True)
 
-    for name in UI_FILES:
-        source = ROOT / name
+    for source_name, target_name in UI_FILE_MAP.items():
+        source = ROOT / source_name
         require_file(source)
-        shutil.copy2(source, DEPLOY / "solicitud-venta" / name)
+        shutil.copy2(source, DEPLOY / "solicitud-venta" / target_name)
 
     copy_tree(ROOT / "inicio", DEPLOY / "solicitud-venta" / "inicio")
     copy_tree(ROOT / "vobo", DEPLOY / "solicitud-venta" / "vobo")

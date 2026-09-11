@@ -18,21 +18,22 @@ El Portal Interno solamente proporciona la sesion SSO compartida de Microsoft 36
 
 ```text
 Solicitud-Venta/
-├── .github/workflows/      # Despliegue canonico y disparadores
+├── .github/workflows/      # Despliegue canonico y disparador automatico
 ├── api/solicitud-venta/    # Backend PHP
 ├── docs/                   # Documentacion tecnica
 ├── firma/                  # Experiencia publica de firma remota
 ├── inicio/                 # Pantalla Mis solicitudes
+├── src/
+│   ├── js/                 # Modulos JavaScript de captura y flujo
+│   └── css/                # Estilos de la interfaz autenticada
 ├── tools/                  # Build y despliegue FTPS
 ├── vobo/                   # Bandejas de Vo.Bo. Comercial y Cobranza
 ├── index.php               # Entrada autenticada de produccion
 ├── index.html              # Plantilla base de captura
-├── app.js                  # Logica principal de captura
-├── auth.js                 # Adaptador de sesion SSO
-├── persistencia.js         # Persistencia de borradores
-├── wizard.js               # Navegacion por pasos y resumen
-└── styles.css              # Estilos principales
+└── README.md
 ```
+
+Los archivos fuente JS/CSS viven bajo `src/`. El builder los copia al nivel raiz del paquete de produccion para conservar las URLs existentes de `/solicitud-venta/`; por lo tanto, esta organizacion no cambia las rutas publicas ni obliga a modificar enlaces almacenados.
 
 Los modulos de produccion ya no utilizan nombres temporales `*-fix.js`. Los nombres funcionales actuales incluyen `correccion.js`, `correccion-validacion.js`, `documentacion.js` y `firma-remota-preflight.js`.
 
@@ -93,7 +94,7 @@ La construccion de produccion esta centralizada en:
 
 `tools/build_solicitud_package.py`
 
-Este script crea `_deploy/`, prepara los assets de produccion, valida marcadores criticos y deja listo el paquete para publicacion. La autenticacion compartida del Portal, la recuperacion de borradores y la firma remota ya viven directamente en el codigo fuente; no existe una capa de normalizacion de runtime.
+Este script crea `_deploy/`, copia `src/js` y `src/css` a las rutas publicas existentes, prepara los assets de produccion, valida marcadores criticos y deja listo el paquete para publicacion. La autenticacion compartida del Portal, la recuperacion de borradores y la firma remota viven directamente en el codigo fuente; no existe una capa de normalizacion de runtime.
 
 El workflow valida la estructura, ejecuta el builder, valida PHP y publica por FTPS mediante `tools/deploy_solicitud_ftps.sh`.
 
@@ -117,7 +118,7 @@ Las credenciales, secretos e IDs de Microsoft/SharePoint permanecen fuera del re
 
 Antes de eliminar, mover o consolidar un archivo del runtime:
 
-1. verificar referencias en `index.php`, `index.html` y modulos JS;
+1. verificar referencias en `index.php`, `index.html` y `src/js/`;
 2. verificar `tools/build_solicitud_package.py` y `tools/deploy_solicitud_ftps.sh`;
 3. construir y validar `_deploy/`;
 4. probar captura, guardado/reanudacion, firma presencial/remota, Vo.Bo., correcciones, PDF y notificaciones;
