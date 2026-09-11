@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - '.github/workflows/finalizar-fuentes-sin-parches.yml'
+      - 'tools/build_solicitud_package.py'
   workflow_dispatch:
 
 permissions:
@@ -43,7 +44,6 @@ jobs:
           def write(path: Path, text: str) -> None:
               path.write_text(text, encoding='utf-8')
 
-          # 1) componentes.js: el guard contra carga duplicada vive ya en fuente.
           componentes = root / 'src/js/componentes.js'
           source = componentes.read_text(encoding='utf-8')
           guard = "  if (window.__solicitudComponentesModuloActivo) return;\n  window.__solicitudComponentesModuloActivo = true;\n"
@@ -54,7 +54,6 @@ jobs:
               source = source.replace(marker, marker + guard, 1)
               write(componentes, source)
 
-          # 2) pdf-final-lib.php: la posicion definitiva del encabezado deja espacio al logo.
           pdf_lib = root / 'api/solicitud-venta/pdf-final-lib.php'
           source = pdf_lib.read_text(encoding='utf-8')
           replacements = [
@@ -75,7 +74,6 @@ jobs:
               source = source.replace(old, new, 1)
           write(pdf_lib, source)
 
-          # 3) pdf-final-layout-v3.php: branding y consentimiento quedan en fuente.
           layout = root / 'api/solicitud-venta/pdf-final-layout-v3.php'
           source = layout.read_text(encoding='utf-8')
 
@@ -113,7 +111,6 @@ jobs:
               source = source.replace(old_consent, new_consent, 1)
           write(layout, source)
 
-          # 4) El builder deja de modificar JavaScript o PHP; solo copia y valida.
           builder = root / 'tools/build_solicitud_package.py'
           source = builder.read_text(encoding='utf-8')
           start = source.find('\ndef prepare_componentes() -> None:\n')
@@ -141,7 +138,6 @@ jobs:
                   raise RuntimeError(f'El builder aun contiene transformacion: {forbidden}')
           write(builder, source)
 
-          # 5) Documentacion: el builder ya no prepara comportamiento.
           readme = root / 'README.md'
           source = readme.read_text(encoding='utf-8')
           source = source.replace(
@@ -150,7 +146,6 @@ jobs:
           )
           write(readme, source)
 
-          # Barreras de integridad antes de ejecutar el builder.
           assert '__solicitudComponentesModuloActivo' in componentes.read_text(encoding='utf-8')
           assert "self::MARGIN + 90.0, 41.0" in pdf_lib.read_text(encoding='utf-8')
           assert 'svPdfAgregarLogoJdjp($pdf);' in layout.read_text(encoding='utf-8')
