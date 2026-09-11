@@ -66,25 +66,11 @@ COMMON_REPLACEMENTS = [
 for file in UI_FILES + API_AUTH_FILES:
     patch(file, COMMON_REPLACEMENTS)
 
-# El backend ya esta dentro del repo propio. Evitamos comentarios que sigan
-# describiendolo como si viviera dentro del Portal.
 patch('api/solicitud-venta/_common.php', [
     ('// Solicitud de Venta vive dentro del Portal y debe reutilizar la misma sesion',
      '// Solicitud de Venta reutiliza la sesion SSO compartida del Portal'),
 ])
 
-# La fuente de despliegue independiente debe reaccionar a cambios de main.
-workflow = ROOT / '.github/workflows/publicar-solicitud-cpanel.yml'
-text = workflow.read_text(encoding='utf-8')
-if '  push:\n    branches:\n      - main\n' not in text:
-    text = text.replace('on:\n  workflow_dispatch:', 'on:\n  push:\n    branches:\n      - main\n  workflow_dispatch:', 1)
-text = text.replace(
-    '          SOLICITUD_DEPLOY_SCOPE: ${{ inputs.alcance }}',
-    "          SOLICITUD_DEPLOY_SCOPE: ${{ github.event_name == 'workflow_dispatch' && inputs.alcance || 'completo' }}"
-)
-workflow.write_text(text, encoding='utf-8')
-
-# Validaciones de propiedad del repositorio.
 required = [
     ROOT / 'api/solicitud-venta/autorizacion.php',
     ROOT / 'api/solicitud-venta/expediente-final-prueba.php',
