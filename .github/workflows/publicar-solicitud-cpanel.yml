@@ -51,6 +51,7 @@ jobs:
           test -s correccion-validar-fix.js
           test -s wizard.js
           test -s wizard.css
+          test -s consentimiento-privacidad.js
           test -d inicio
           test -d vobo
           test -d api/solicitud-venta
@@ -61,10 +62,14 @@ jobs:
           test -s api/solicitud-venta/validar.php
           test -s api/solicitud-venta/vobo.php
           test -s api/solicitud-venta/firma-remota-publica.php
+          test -s api/solicitud-venta/consentimiento-privacidad.php
+          test -s api/solicitud-venta/consentimiento.php
+          test -s api/solicitud-venta/consentimiento-remoto.php
           test -s api/solicitud-venta/pdf-branding.php
           test -s api/solicitud-venta/identificaciones-pdf.php
           test -s firma/index.html
           test -s firma/firma.js
+          test -s firma/consentimiento.js
           test -s firma/styles.css
           test -s tools/prepare_solicitud_portal_session.py
           test -s tools/deploy_solicitud_ftps.sh
@@ -94,7 +99,8 @@ jobs:
             firma-remota.js firma-remota-seguimiento.js firma-remota-gestion.js \
             firma-remota-fix.js correccion-fix.js firma-remota.css extras.js \
             documentos-identificacion-doble.js documentacion-fix.js persistencia.js \
-            financiamiento-integracion.js financiamiento-bridge.js sucursales-componentes.js wizard.js resumen-directo.js; do
+            financiamiento-integracion.js financiamiento-bridge.js sucursales-componentes.js \
+            consentimiento-privacidad.js wizard.js resumen-directo.js; do
             test -s "$file"
             cp "$file" "_deploy/solicitud-venta/$file"
           done
@@ -133,6 +139,7 @@ jobs:
               'componentes.js',
               'componentes-sync.js',
               'correccion-validar-fix.js',
+              'consentimiento-privacidad.js',
               'firma-remota.js',
               'firma-remota-seguimiento.js',
               'firma-remota-gestion.js',
@@ -167,7 +174,7 @@ jobs:
           if '</body>' not in source:
               raise RuntimeError('No se encontro </body> para insertar los modulos de Solicitud de Venta.')
 
-          version = '20260823-fin-source-pdf-1'
+          version = '20260911-privacy-consent-1'
           tags = '\n'.join(f'  <script src="{module}?v={version}"></script>' for module in modules)
           source = source.replace('</body>', f'{tags}\n</body>', 1)
 
@@ -190,8 +197,7 @@ jobs:
               componentes_source = componentes_source.replace(marker, replacement, 1)
               componentes_path.write_text(componentes_source, encoding='utf-8')
 
-          # Branding del PDF final: el motor base dibuja primero la cabecera de texto.
-          # Desplazamos esos textos y agregamos el logo a cada pagina del layout V3.
+          # Branding y declaracion de privacidad del PDF final.
           lib_path = Path('_deploy/api/solicitud-venta/pdf-final-lib.php')
           lib_source = lib_path.read_text(encoding='utf-8')
           lib_source = lib_source.replace(
@@ -215,6 +221,11 @@ jobs:
               lambda m: f"{m.group(1)}svPdfV3NuevaPagina($pdf);\n{m.group(1)}svPdfAgregarLogoJdjp($pdf);",
               layout_source,
           )
+          old_consent = 'El cliente manifiesta su conformidad con la información capturada en esta Solicitud de Venta y con las condiciones, importes, componentes y servicios asentados en el expediente digital del folio.'
+          new_consent = 'El cliente manifiesta su conformidad con la información capturada en esta Solicitud de Venta y con las condiciones, importes, componentes y servicios asentados en el expediente digital del folio. Asimismo, declara haber leído el Aviso de Privacidad de MEGUESA, S.A. de C.V. y autoriza el tratamiento de sus datos personales y, cuando corresponda, datos patrimoniales o financieros para elaborar, evaluar, formalizar, administrar y dar seguimiento a esta Solicitud de Venta. Aviso de Privacidad versión 11/09/2026; consentimiento solicitud-venta-2026-09-11-v1.'
+          if old_consent not in layout_source:
+              raise RuntimeError('No se encontro la declaracion de conformidad para agregar privacidad.')
+          layout_source = layout_source.replace(old_consent, new_consent, 1)
           layout_path.write_text(layout_source, encoding='utf-8')
           PY
 
@@ -229,6 +240,11 @@ jobs:
           grep -q '__solicitudFirmaRemotaPreflightActivo' _deploy/solicitud-venta/firma-remota-fix.js
           grep -q '__solicitudFinanciamientoIntegracionActiva' _deploy/solicitud-venta/financiamiento-integracion.js
           grep -q '__solicitudFinanciamientoBridgeActivo' _deploy/solicitud-venta/financiamiento-bridge.js
+          grep -q '__solicitudConsentimientoFetchEnvuelto' _deploy/solicitud-venta/consentimiento-privacidad.js
+          grep -q 'CONSENTIMIENTO_PRIVACIDAD_SOLICITUD_VENTA' _deploy/api/solicitud-venta/consentimiento-privacidad.php
+          grep -q 'consentimiento-remoto.php' _deploy/firma/consentimiento.js
+          grep -q 'solicitud-venta-2026-09-11-v1' _deploy/firma/index.html
+          grep -q 'Aviso de Privacidad versión 11/09/2026' _deploy/api/solicitud-venta/pdf-final-layout-v3.php
           grep -q 'CORRIDA_FINANCIERA' _deploy/api/solicitud-venta/archivos.php
           grep -q 'VALIDAR_ENDPOINT' _deploy/solicitud-venta/correccion-validar-fix.js
           grep -q 'btnSolicitudInicio' _deploy/solicitud-venta/index.html
