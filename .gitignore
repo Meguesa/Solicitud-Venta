@@ -1,0 +1,17 @@
+# Paquetes temporales de construccion
+_deploy/
+
+# Dependencias/locales
+node_modules/
+vendor/
+
+# Archivos temporales del sistema/editor
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
+
+# Credenciales o configuracion local
+.env
+.env.*
+!.env.example
