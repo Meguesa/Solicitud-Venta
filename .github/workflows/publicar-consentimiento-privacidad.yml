@@ -18,6 +18,12 @@ on:
       - 'api/solicitud-venta/consentimiento-privacidad.php'
       - 'api/solicitud-venta/preparar-firma-remota.php'
       - 'api/solicitud-venta/iniciar-firma-remota.php'
+      - 'api/solicitud-venta/pdf-preliminar.php'
+      - 'api/solicitud-venta/pdf-final-layout.php'
+      - 'api/solicitud-venta/pdf-final-layout-v2.php'
+      - 'api/solicitud-venta/pdf-final-layout-v3.php'
+      - 'api/solicitud-venta/pdf-final-lib.php'
+      - 'api/solicitud-venta/pdf-branding.php'
       - '.github/workflows/publicar-solicitud-cpanel.yml'
       - '.github/workflows/publicar-consentimiento-privacidad.yml'
   workflow_dispatch:
