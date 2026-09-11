@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import re
 import shutil
-from collections import Counter
 from pathlib import Path
-from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 DEPLOY = ROOT / "_deploy"
@@ -73,62 +71,34 @@ def copy_tree(source: Path, target: Path) -> None:
     shutil.copytree(source, target, dirs_exist_ok=True)
 
 
-def basename_src(src: str) -> str:
-    path_part = urlsplit(src).path.rstrip("/")
-    return path_part.rsplit("/", 1)[-1] if path_part else ""
-
-
-def prepare_index() -> None:
+def validate_index_source() -> None:
     path = DEPLOY / "solicitud-venta" / "index.html"
     source = path.read_text(encoding="utf-8")
 
-    if "firma-remota.css" not in source:
-        source = source.replace(
-            '<link rel="stylesheet" href="styles.css">',
-            '<link rel="stylesheet" href="styles.css">\n'
-            '  <link rel="stylesheet" href="firma-remota.css?v=20260820-1">',
-            1,
+    if "msal-browser" in source.lower() or "alcdn.msauth" in source.lower():
+        raise RuntimeError("index.html aun contiene la autenticacion MSAL historica.")
+
+    required_styles = ["styles.css", "firma-remota.css", "wizard.css"]
+    for style in required_styles:
+        if style not in source:
+            raise RuntimeError(f"index.html no carga {style}.")
+
+    required_scripts = ["config.js", "auth.js", "app.js", *MODULES]
+    for script in required_scripts:
+        matches = re.findall(
+            rf'<script\b[^>]*\bsrc=["\'][^"\']*{re.escape(script)}(?:\?[^"\']*)?["\'][^>]*></script>',
+            source,
+            flags=re.I,
         )
-    if "wizard.css" not in source:
-        source = source.replace(
-            "</head>",
-            '  <link rel="stylesheet" href="wizard.css?v=20260821-1">\n</head>',
-            1,
+        if len(matches) != 1:
+            raise RuntimeError(
+                f"index.html debe cargar {script} exactamente una vez; se encontraron {len(matches)} referencias."
+            )
+
+    if f"?v={CACHE_VERSION}" not in source:
+        raise RuntimeError(
+            f"index.html no utiliza la version de cache esperada {CACHE_VERSION} para los modulos administrados."
         )
-
-    source = re.sub(
-        r'\s*<script[^>]+(?:msal-browser|alcdn\.msauth|cdn\.jsdelivr\.net/npm/@azure/msal-browser)[^>]*></script>\s*',
-        "\n",
-        source,
-        flags=re.I,
-    )
-
-    module_set = set(MODULES)
-    script_pattern = re.compile(
-        r'\s*<script\b[^>]*\bsrc=["\']([^"\']+)["\'][^>]*></script>\s*',
-        flags=re.I,
-    )
-
-    def remove_managed_script(match: re.Match[str]) -> str:
-        return "\n" if basename_src(match.group(1)) in module_set else match.group(0)
-
-    source = script_pattern.sub(remove_managed_script, source)
-    if "</body>" not in source:
-        raise RuntimeError("No se encontro </body> para insertar los modulos de Solicitud de Venta.")
-
-    tags = "\n".join(
-        f'  <script src="{module}?v={CACHE_VERSION}"></script>'
-        for module in MODULES
-    )
-    source = source.replace("</body>", f"{tags}\n</body>", 1)
-
-    names = [basename_src(src) for src in script_pattern.findall(source)]
-    counts = Counter(names)
-    for module in MODULES:
-        if counts[module] != 1:
-            raise RuntimeError(f"{module} aparece {counts[module]} veces; se esperaba exactamente 1.")
-
-    path.write_text(source, encoding="utf-8")
 
 
 def prepare_componentes() -> None:
@@ -231,9 +201,7 @@ def validate_package() -> None:
         if marker not in path.read_text(encoding="utf-8"):
             raise RuntimeError(f"Falta marcador {marker!r} en {path.relative_to(ROOT)}")
 
-    index_source = (DEPLOY / "solicitud-venta/index.html").read_text(encoding="utf-8")
-    if "msal-browser" in index_source.lower():
-        raise RuntimeError("La interfaz aun intenta cargar MSAL independiente.")
+    validate_index_source()
 
     firma_source = (DEPLOY / "solicitud-venta/firma-remota.js").read_text(encoding="utf-8")
     if "instalarRedireccionCargaEstado" in firma_source or "__solicitudFirmaRemotaFetchEstadoEnvuelto" in firma_source:
@@ -261,7 +229,6 @@ def build() -> None:
     copy_tree(ROOT / "api" / "solicitud-venta", DEPLOY / "api" / "solicitud-venta")
     copy_tree(ROOT / "firma", DEPLOY / "firma")
 
-    prepare_index()
     prepare_componentes()
     prepare_pdf()
     validate_package()
