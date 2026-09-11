@@ -2,8 +2,7 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
-require_once __DIR__ . '/_common.php';
+require_once __DIR__ . '/autorizacion.php';
 require_once __DIR__ . '/pdf-final-lib.php';
 require_once __DIR__ . '/pdf-branding.php';
 require_once __DIR__ . '/pdf-final-layout.php';
@@ -64,7 +63,7 @@ function pdfPreliminarNormalizarEtiquetasMayusculas(string $pdf): string
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
     pdfPreliminarError(405, 'METHOD_NOT_ALLOWED', 'Metodo no permitido.');
 }
-if (!portal_is_authenticated()) {
+if (!svSolicitudEstaAutenticado()) {
     pdfPreliminarError(401, 'AUTH_REQUIRED', 'La sesion del Portal Interno no esta activa.');
 }
 
@@ -96,11 +95,11 @@ if (!in_array($estatus, ['PENDIENTE VOBO', 'PENDIENTE COBRANZA'], true)) {
     );
 }
 
-$user = portal_user();
+$user = svSolicitudUsuario();
 $userEmail = strtolower(trim((string) ($user['email'] ?? '')));
 $sellerEmail = strtolower(trim((string) ($principal['Vendedor_Correo'] ?? '')));
-$canReview = portal_user_can_vobo() || portal_user_can_cobranza_vobo();
 $isOwner = $userEmail !== '' && $sellerEmail !== '' && hash_equals($sellerEmail, $userEmail);
+$canReview = $isOwner ? true : svSolicitudCanAnyVobo();
 if (!$canReview && !$isOwner) {
     pdfPreliminarError(403, 'PDF_PREVIEW_FORBIDDEN', 'Tu cuenta no tiene autorizacion para consultar este PDF preliminar.');
 }
