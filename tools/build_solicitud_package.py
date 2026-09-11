@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import shutil
 from pathlib import Path
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 DEPLOY = ROOT / "_deploy"
@@ -71,6 +72,11 @@ def copy_tree(source: Path, target: Path) -> None:
     shutil.copytree(source, target, dirs_exist_ok=True)
 
 
+def script_basename(src: str) -> str:
+    path = urlsplit(src).path.rstrip("/")
+    return path.rsplit("/", 1)[-1] if path else ""
+
+
 def validate_index_source() -> None:
     path = DEPLOY / "solicitud-venta" / "index.html"
     source = path.read_text(encoding="utf-8")
@@ -83,16 +89,19 @@ def validate_index_source() -> None:
         if style not in source:
             raise RuntimeError(f"index.html no carga {style}.")
 
+    script_sources = re.findall(
+        r'<script\b[^>]*\bsrc=["\']([^"\']+)["\'][^>]*></script>',
+        source,
+        flags=re.I,
+    )
+    script_names = [script_basename(src) for src in script_sources]
+
     required_scripts = ["config.js", "auth.js", "app.js", *MODULES]
     for script in required_scripts:
-        matches = re.findall(
-            rf'<script\b[^>]*\bsrc=["\'][^"\']*{re.escape(script)}(?:\?[^"\']*)?["\'][^>]*></script>',
-            source,
-            flags=re.I,
-        )
-        if len(matches) != 1:
+        count = script_names.count(script)
+        if count != 1:
             raise RuntimeError(
-                f"index.html debe cargar {script} exactamente una vez; se encontraron {len(matches)} referencias."
+                f"index.html debe cargar {script} exactamente una vez; se encontraron {count} referencias exactas."
             )
 
     if f"?v={CACHE_VERSION}" not in source:
