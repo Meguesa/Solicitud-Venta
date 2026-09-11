@@ -7,6 +7,8 @@ on:
     paths:
       - 'consentimiento-privacidad.js'
       - 'documentacion-fix.js'
+      - 'firma-remota.js'
+      - 'firma-remota-fix.js'
       - 'firma/index.html'
       - 'firma/firma.js'
       - 'firma/consentimiento.js'
@@ -14,6 +16,8 @@ on:
       - 'api/solicitud-venta/consentimiento.php'
       - 'api/solicitud-venta/consentimiento-remoto.php'
       - 'api/solicitud-venta/consentimiento-privacidad.php'
+      - 'api/solicitud-venta/preparar-firma-remota.php'
+      - 'api/solicitud-venta/iniciar-firma-remota.php'
       - '.github/workflows/publicar-solicitud-cpanel.yml'
       - '.github/workflows/publicar-consentimiento-privacidad.yml'
   workflow_dispatch:
