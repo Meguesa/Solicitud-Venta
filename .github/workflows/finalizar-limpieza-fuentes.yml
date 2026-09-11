@@ -1,0 +1,62 @@
+name: Finalizar limpieza de fuentes Solicitud de Venta
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'tools/finalize_source_cleanup.py'
+      - '.github/workflows/finalizar-limpieza-fuentes.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  GIT_AUTHOR_NAME: github-actions[bot]
+  GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+  GIT_COMMITTER_NAME: github-actions[bot]
+  GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+
+jobs:
+  migrate:
+    name: Incorporar compatibilidad al codigo fuente
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Ejecutar migracion
+        run: python3 tools/finalize_source_cleanup.py
+
+      - name: Validar que no quede normalizador
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -f tools/normalize_runtime.py
+          test ! -f tools/finalize_source_cleanup.py
+          test ! -f .github/workflows/finalizar-limpieza-fuentes.yml
+          ! grep -R "normalize_runtime" tools .github/workflows README.md
+          ! grep -n "instalarRedireccionCargaEstado\|__solicitudFirmaRemotaFetchEstadoEnvuelto" firma-remota.js
+          grep -q "svUsuarioAutenticado(\$tenantId, \$clientId)" api/solicitud-venta/archivos.php
+          grep -q "svUsuarioAutenticado(\$tenantId, \$backendClientId)" api/solicitud-venta/borrador.php
+
+      - name: Validar build final
+        run: python3 tools/build_solicitud_package.py
+
+      - name: Guardar migracion final
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "$GIT_AUTHOR_NAME"
+          git config user.email "$GIT_AUTHOR_EMAIL"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No hay cambios pendientes."
+            exit 0
+          fi
+          git commit -m "Eliminar normalizacion historica del runtime"
+          git push origin HEAD:main
