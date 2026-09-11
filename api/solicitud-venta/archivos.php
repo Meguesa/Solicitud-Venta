@@ -6,6 +6,8 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
+require_once __DIR__ . '/_common.php';
+
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     responderError(405, 'METHOD_NOT_ALLOWED', 'Metodo no permitido.');
 }
@@ -27,22 +29,7 @@ if ($tenantId === '' || $clientId === '' || $clientSecret === '' || $siteId === 
     responderError(500, 'CONFIG_INCOMPLETE', 'La configuracion del backend esta incompleta.');
 }
 
-$authorization = obtenerAuthorizationHeader();
-if (!preg_match('/^Bearer\s+(.+)$/i', $authorization, $matches)) {
-    responderError(401, 'TOKEN_REQUIRED', 'Se requiere un access token Bearer.');
-}
-
-try {
-    $claims = validarAccessTokenEntra(trim($matches[1]), $tenantId, $clientId);
-} catch (Throwable $error) {
-    error_log('Solicitud Venta archivo token: ' . $error->getMessage());
-    responderError(401, 'INVALID_TOKEN', 'El access token no es valido.');
-}
-
-$scopes = preg_split('/\s+/', trim((string) ($claims['scp'] ?? ''))) ?: [];
-if (!in_array('SolicitudVenta.Access', $scopes, true)) {
-    responderError(403, 'SCOPE_REQUIRED', 'El token no contiene el permiso requerido.');
-}
+$claims = svUsuarioAutenticado($tenantId, $clientId);
 
 $correoUsuario = strtolower(trim((string) ($claims['preferred_username'] ?? $claims['upn'] ?? '')));
 $folio = strtoupper(trim((string) ($_POST['folio'] ?? '')));

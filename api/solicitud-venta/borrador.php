@@ -6,6 +6,8 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
+require_once __DIR__ . '/_common.php';
+
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     http_response_code(405);
     header('Allow: POST');
@@ -31,31 +33,10 @@ if ($tenantId === '' || $backendClientId === '' || $backendClientSecret === '' |
     responderError(500, 'CONFIG_INCOMPLETE', 'La configuracion del backend de Solicitud de Venta esta incompleta.');
 }
 
-$authorization = obtenerAuthorizationHeader();
-if (!preg_match('/^Bearer\s+(.+)$/i', $authorization, $matches)) {
-    responderError(401, 'TOKEN_REQUIRED', 'Se requiere un access token Bearer.');
-}
+$claims = svUsuarioAutenticado($tenantId, $backendClientId);
+$tenantClaim = (string) ($claims['tid'] ?? $tenantId);
 
-$token = trim($matches[1]);
-
-try {
-    $claims = validarAccessTokenEntra($token, $tenantId, $backendClientId);
-} catch (Throwable $error) {
-    error_log('Solicitud Venta token invalido: ' . $error->getMessage());
-    responderError(401, 'INVALID_TOKEN', 'El access token no es valido: ' . $error->getMessage());
-}
-
-$scopes = preg_split('/\s+/', trim((string) ($claims['scp'] ?? ''))) ?: [];
-if (!in_array('SolicitudVenta.Access', $scopes, true)) {
-    responderError(403, 'SCOPE_REQUIRED', 'El token no contiene el permiso SolicitudVenta.Access.');
-}
-
-$tenantClaim = (string) ($claims['tid'] ?? '');
-if (!hash_equals(strtolower($tenantId), strtolower($tenantClaim))) {
-    responderError(403, 'TENANT_NOT_ALLOWED', 'El tenant del usuario no esta autorizado.');
-}
-
-$body = file_get_contents('php://input');
+$body = file_get_contents('php://input');$body = file_get_contents('php://input');
 $payload = [];
 if (is_string($body) && trim($body) !== '') {
     $decoded = json_decode($body, true);

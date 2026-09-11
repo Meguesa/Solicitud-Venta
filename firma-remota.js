@@ -11,7 +11,6 @@
   let seguimientoFolio = "";
   let ultimoEstatus = "";
 
-  instalarRedireccionCargaEstado();
 
   function iniciar() {
     if (inicializado) return;
@@ -38,24 +37,6 @@
     document.addEventListener("DOMContentLoaded", () => setTimeout(iniciar, 0));
   } else {
     setTimeout(iniciar, 0);
-  }
-
-  function instalarRedireccionCargaEstado() {
-    if (window.__solicitudFirmaRemotaFetchEstadoEnvuelto) return;
-    const fetchAnterior = window.fetch.bind(window);
-
-    window.fetch = function (input, init = {}) {
-      try {
-        const url = typeof input === "string" ? input : String(input?.url || "");
-        if (url.includes("/api/solicitud-venta/estado-borrador.php") && String(init?.method || "GET").toUpperCase() === "POST") {
-          const body = typeof init?.body === "string" ? JSON.parse(init.body) : null;
-          if (body?.accion === "cargar") return fetchAnterior(ESTADO_ENDPOINT, init);
-        }
-      } catch (_) {}
-      return fetchAnterior(input, init);
-    };
-
-    window.__solicitudFirmaRemotaFetchEstadoEnvuelto = true;
   }
 
   function insertarSelectorModalidad(section) {
@@ -377,7 +358,7 @@
     const form = document.getElementById("solicitudForm");
     if (!form) return;
     form.querySelectorAll("input, select, textarea, button").forEach((control) => {
-      if (["btnLogout", "btnCopiarFirmaRemota"].includes(control.id)) return;
+      if (["btnLogout", "btnVolverMisSolicitudes", "btnCopiarFirmaRemota"].includes(control.id)) return;
       if (control.closest("#firmaRemotaResultado")) return;
       control.disabled = true;
     });

@@ -23,7 +23,7 @@ Solicitud-Venta/
 ├── docs/                   # Documentacion tecnica
 ├── firma/                  # Experiencia publica de firma remota
 ├── inicio/                 # Pantalla Mis solicitudes
-├── tools/                  # Build, normalizacion y despliegue FTPS
+├── tools/                  # Build y despliegue FTPS
 ├── vobo/                   # Bandejas de Vo.Bo. Comercial y Cobranza
 ├── index.php               # Entrada autenticada de produccion
 ├── index.html              # Plantilla base de captura
@@ -93,11 +93,9 @@ La construccion de produccion esta centralizada en:
 
 `tools/build_solicitud_package.py`
 
-Este script crea `_deploy/`, prepara la plantilla, aplica compatibilidad historica, valida marcadores criticos y deja listo el paquete para publicacion. La compatibilidad que aun debe migrarse gradualmente a codigo fuente definitivo esta aislada en:
+Este script crea `_deploy/`, prepara los assets de produccion, valida marcadores criticos y deja listo el paquete para publicacion. La autenticacion compartida del Portal, la recuperacion de borradores y la firma remota ya viven directamente en el codigo fuente; no existe una capa de normalizacion de runtime.
 
-`tools/normalize_runtime.py`
-
-El workflow ya no contiene bloques extensos de transformacion de codigo: valida la estructura, ejecuta el builder, valida PHP y publica por FTPS mediante `tools/deploy_solicitud_ftps.sh`.
+El workflow valida la estructura, ejecuta el builder, valida PHP y publica por FTPS mediante `tools/deploy_solicitud_ftps.sh`.
 
 El despliegue solo puede escribir en:
 
@@ -123,4 +121,4 @@ Antes de eliminar, mover o consolidar un archivo del runtime:
 2. verificar `tools/build_solicitud_package.py` y `tools/deploy_solicitud_ftps.sh`;
 3. construir y validar `_deploy/`;
 4. probar captura, guardado/reanudacion, firma presencial/remota, Vo.Bo., correcciones, PDF y notificaciones;
-5. retirar del normalizador cualquier parche que ya haya sido incorporado de forma definitiva al codigo fuente.
+5. mantener toda la logica funcional en el codigo fuente y evitar parches de runtime durante el despliegue.

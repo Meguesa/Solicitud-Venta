@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import re
 import shutil
-import subprocess
-import sys
 from collections import Counter
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -204,18 +202,6 @@ def prepare_pdf() -> None:
     layout_path.write_text(layout_source, encoding="utf-8")
 
 
-def normalize_runtime() -> None:
-    normalizer = DEPLOY / "scripts" / "normalize_runtime.py"
-    require_file(normalizer)
-
-    # _common.php ya contiene la implementacion definitiva de sesion compartida.
-    # El normalizador historico aun transforma ese archivo, asi que conservamos
-    # la fuente actual mientras migramos el resto de sus parches a codigo base.
-    common = DEPLOY / "api" / "solicitud-venta" / "_common.php"
-    common_source = common.read_bytes()
-    subprocess.run([sys.executable, str(normalizer)], cwd=DEPLOY, check=True)
-    common.write_bytes(common_source)
-
 
 def validate_package() -> None:
     checks = [
@@ -229,8 +215,10 @@ def validate_package() -> None:
         (DEPLOY / "firma/index.html", "solicitud-venta-2026-09-11-v1"),
         (DEPLOY / "api/solicitud-venta/pdf-final-layout-v3.php", "Aviso de Privacidad versión 11/09/2026"),
         (DEPLOY / "api/solicitud-venta/archivos.php", "CORRIDA_FINANCIERA"),
+        (DEPLOY / "api/solicitud-venta/archivos.php", "svUsuarioAutenticado($tenantId, $clientId)"),
+        (DEPLOY / "api/solicitud-venta/borrador.php", "svUsuarioAutenticado($tenantId, $backendClientId)"),
+        (DEPLOY / "solicitud-venta/index.php", "btnVolverMisSolicitudes"),
         (DEPLOY / "solicitud-venta/correccion-validacion.js", "VALIDAR_ENDPOINT"),
-        (DEPLOY / "solicitud-venta/index.html", "btnSolicitudInicio"),
         (DEPLOY / "solicitud-venta/persistencia.js", "referenciaSolicitada"),
         (DEPLOY / "api/solicitud-venta/estado-borrador.php", "SHAREPOINT_FALLBACK"),
         (DEPLOY / "api/solicitud-venta/_common.php", "PORTAL_SESSION"),
@@ -248,6 +236,10 @@ def validate_package() -> None:
     if "msal-browser" in index_source.lower():
         raise RuntimeError("La interfaz aun intenta cargar MSAL independiente.")
 
+    firma_source = (DEPLOY / "solicitud-venta/firma-remota.js").read_text(encoding="utf-8")
+    if "instalarRedireccionCargaEstado" in firma_source or "__solicitudFirmaRemotaFetchEstadoEnvuelto" in firma_source:
+        raise RuntimeError("firma-remota.js aun contiene el interceptor historico de fetch.")
+
     print("Paquete de produccion construido y validado exclusivamente desde Solicitud-Venta.")
 
 
@@ -259,7 +251,6 @@ def build() -> None:
     (DEPLOY / "solicitud-venta" / "vobo").mkdir(parents=True, exist_ok=True)
     (DEPLOY / "api").mkdir(parents=True, exist_ok=True)
     (DEPLOY / "firma").mkdir(parents=True, exist_ok=True)
-    (DEPLOY / "scripts").mkdir(parents=True, exist_ok=True)
 
     for name in UI_FILES:
         source = ROOT / name
@@ -271,14 +262,9 @@ def build() -> None:
     copy_tree(ROOT / "api" / "solicitud-venta", DEPLOY / "api" / "solicitud-venta")
     copy_tree(ROOT / "firma", DEPLOY / "firma")
 
-    normalizer = ROOT / "tools" / "normalize_runtime.py"
-    require_file(normalizer)
-    shutil.copy2(normalizer, DEPLOY / "scripts" / "normalize_runtime.py")
-
     prepare_index()
     prepare_componentes()
     prepare_pdf()
-    normalize_runtime()
     validate_package()
 
 
