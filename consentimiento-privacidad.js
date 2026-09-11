@@ -15,22 +15,41 @@
     }
 
     instalado = true;
+    insertarEstilos();
     insertarConsentimiento(firmasSection);
     envolverFetchValidacion();
     form.addEventListener("submit", validarConsentimientoPresencial, true);
-    document.getElementById("modalidadFirma")?.addEventListener("change", sincronizarModalidad);
+    document.addEventListener("change", (event) => {
+      if (event.target instanceof Element && event.target.id === "modalidadFirma") sincronizarModalidad();
+    });
     document.getElementById("btnReset")?.addEventListener("click", () => {
       const checkbox = document.getElementById("consentimientoPrivacidadPresencial");
       if (checkbox) checkbox.checked = false;
       setTimeout(sincronizarModalidad, 0);
     });
     sincronizarModalidad();
+    setTimeout(sincronizarModalidad, 300);
   }
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => setTimeout(iniciar, 0));
   } else {
     setTimeout(iniciar, 0);
+  }
+
+  function insertarEstilos() {
+    if (document.getElementById("solicitudPrivacyConsentStyles")) return;
+    const style = document.createElement("style");
+    style.id = "solicitudPrivacyConsentStyles";
+    style.textContent = `
+      .privacy-consent-box{margin:0 0 18px;padding:14px 16px;border:1px solid #c7d8e6;border-radius:12px;background:#f4f8fb;color:#2b2927}
+      .privacy-consent-line{display:flex;gap:10px;align-items:flex-start;line-height:1.5;cursor:pointer}
+      .privacy-consent-line input{width:20px;height:20px;flex:0 0 auto;margin-top:2px}
+      .privacy-consent-line a{color:#174f7c;font-weight:700;text-underline-offset:2px}
+      .privacy-consent-box small{display:block;margin:8px 0 0 30px;color:#6f665f}
+      .privacy-consent-line input:focus-visible,.privacy-consent-line a:focus-visible{outline:3px solid #f0ad1f;outline-offset:3px}
+    `;
+    document.head.appendChild(style);
   }
 
   function insertarConsentimiento(section) {
@@ -43,7 +62,7 @@
       <label class="privacy-consent-line" for="consentimientoPrivacidadPresencial">
         <input id="consentimientoPrivacidadPresencial" type="checkbox">
         <span>
-          Confirmo que el cliente revisó la información de la Solicitud de Venta y que los datos y condiciones mostrados corresponden a lo acordado. Asimismo, el cliente declara que leyó el
+          El cliente confirma que revisó la información de la Solicitud de Venta y que los datos y condiciones mostrados corresponden a lo acordado. Asimismo, declara que leyó el
           <a href="${AVISO_URL}" target="_blank" rel="noopener noreferrer">Aviso de Privacidad de MEGUESA, S.A. de C.V.</a>
           y autoriza el tratamiento de sus datos personales y, cuando corresponda, datos patrimoniales o financieros para elaborar, evaluar, formalizar, administrar y dar seguimiento a esta Solicitud de Venta.
         </span>
