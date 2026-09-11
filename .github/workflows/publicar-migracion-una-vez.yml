@@ -1,0 +1,22 @@
+name: Publicar migracion de Solicitud una vez
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/publicar-migracion-una-vez.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lanzar despliegue completo del repo Solicitud-Venta
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run publicar-solicitud-cpanel.yml --repo Meguesa/Solicitud-Venta --ref main -f alcance=completo
