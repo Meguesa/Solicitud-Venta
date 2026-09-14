@@ -1,0 +1,56 @@
+name: Migrar folio anual
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/migrar-folio-anual.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - name: Actualizar generacion de folio
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('api/solicitud-venta/borrador.php')
+          s = p.read_text(encoding='utf-8')
+          require = "require_once __DIR__ . '/folio.php';"
+          if require not in s:
+              marker = "require_once __DIR__ . '/_common.php';"
+              s = s.replace(marker, marker + "\n" + require, 1)
+          old = "$folio = 'SV-' . gmdate('Y') . '-' . str_pad($itemId, 6, '0', STR_PAD_LEFT);"
+          if old not in s:
+              raise RuntimeError('No se encontro la generacion historica de folio para nuevos registros.')
+          s = s.replace(old, "$folio = svSiguienteFolioAnual($graphToken, $sharePointSiteId, $sharePointListId);", 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+          php -l api/solicitud-venta/borrador.php
+          php -l api/solicitud-venta/folio.php
+          python3 tools/build_solicitud_package.py
+      - name: Guardar migracion
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/migrar-folio-anual.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Usar consecutivo anual para Solicitud de Venta"
+          git push origin HEAD:main
