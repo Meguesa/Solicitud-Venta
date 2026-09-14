@@ -7,6 +7,7 @@ header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
 require_once __DIR__ . '/_common.php';
+require_once __DIR__ . '/folio.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     http_response_code(405);
@@ -283,7 +284,7 @@ if (($payload['accion'] ?? '') === 'guardar_borrador') {
             $itemId = (string) ($item['id'] ?? '');
             if ($itemId === '') throw new RuntimeException('SharePoint creo el registro pero no devolvio el ID del item.');
 
-            $folio = 'SV-' . gmdate('Y') . '-' . str_pad($itemId, 6, '0', STR_PAD_LEFT);
+            $folio = svSiguienteFolioAnual($graphToken, $sharePointSiteId, $sharePointListId);
             $solicitudGrupo = $solicitudGrupo !== '' ? $solicitudGrupo : $folio;
             actualizarCamposItemSharePoint($graphToken, $sharePointSiteId, $sharePointListId, $itemId, [
                 'Title' => $folio,
