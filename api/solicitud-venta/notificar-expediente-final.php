@@ -6,8 +6,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
-require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
-require_once __DIR__ . '/_common.php';
+require_once __DIR__ . '/autorizacion.php';
 require_once __DIR__ . '/notificaciones.php';
 require_once __DIR__ . '/notificaciones-flujo.php';
 require_once __DIR__ . '/sharepoint-grupos.php';
@@ -31,10 +30,10 @@ function nefError(int $status, string $code, string $message): void
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     nefError(405, 'METHOD_NOT_ALLOWED', 'Metodo no permitido.');
 }
-if (!portal_is_authenticated()) {
+if (!svSolicitudEstaAutenticado()) {
     nefError(401, 'AUTH_REQUIRED', 'La sesion del Portal Interno no esta activa.');
 }
-if (!portal_user_can_cobranza_vobo()) {
+if (!svSolicitudCanCobranzaVobo()) {
     nefError(403, 'COBRANZA_FORBIDDEN', 'Tu cuenta no tiene autorizacion para enviar el expediente final.');
 }
 
