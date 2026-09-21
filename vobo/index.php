@@ -133,7 +133,7 @@ $approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
       };
     })();
   </script>
-  <script src="./vobo.js?v=20260921-vobo-fix-1"></script>
+  <script src="./vobo.js?v=20260921-cobranza-mail-1"></script>
   <script src="./vobo-expediente.js?v=20260903-expediente-1"></script>
 </body>
 </html>
