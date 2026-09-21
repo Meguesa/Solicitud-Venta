@@ -2,8 +2,7 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
-require_once __DIR__ . '/_common.php';
+require_once __DIR__ . '/autorizacion.php';
 
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -23,7 +22,7 @@ function voboExpError(int $status, string $code, string $message): void
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
     voboExpError(405, 'METHOD_NOT_ALLOWED', 'Metodo no permitido.');
 }
-if (!portal_is_authenticated()) {
+if (!svSolicitudEstaAutenticado()) {
     voboExpError(401, 'AUTH_REQUIRED', 'La sesion del Portal Interno no esta activa.');
 }
 
@@ -32,15 +31,15 @@ if (!in_array($etapa, ['comercial', 'cobranza'], true)) {
     voboExpError(400, 'INVALID_STAGE', 'La etapa de Vo.Bo. solicitada no es valida.');
 }
 if ($etapa === 'cobranza') {
-    if (!portal_user_can_cobranza_vobo()) {
+    if (!svSolicitudCanCobranzaVobo()) {
         voboExpError(403, 'COBRANZA_FORBIDDEN', 'Tu cuenta no tiene autorizacion para revisar expedientes de Cobranza.');
     }
-} elseif (!portal_user_can_vobo()) {
+} elseif (!svSolicitudCanVobo()) {
     voboExpError(403, 'VOBO_FORBIDDEN', 'Tu cuenta no tiene autorizacion para revisar expedientes de Vo.Bo. Comercial.');
 }
 
 $folio = strtoupper(trim((string) ($_GET['folio'] ?? '')));
-if (!preg_match('/^SV-\d{4}-(\d{6,})$/', $folio, $folioMatch)) {
+if (!preg_match('/^SV-\d{4}-\d{6,}$/', $folio)) {
     voboExpError(400, 'INVALID_FOLIO', 'El folio indicado no es valido.');
 }
 
@@ -52,7 +51,7 @@ if (!in_array($accion, ['listar', 'archivo'], true)) {
 $config = svConfig();
 try {
     $graphToken = svGraphToken($config['tenantId'], $config['clientId'], $config['clientSecret']);
-    voboExpValidarSolicitud($graphToken, $config['siteId'], $config['listId'], $folio, $folioMatch[1], $etapa);
+    voboExpValidarSolicitud($graphToken, $config['siteId'], $config['listId'], $folio, $etapa);
     $driveId = voboExpDriveId($graphToken, $config['siteId']);
     $archivos = voboExpListarArchivos($graphToken, $driveId, $folio);
 } catch (Throwable $error) {
@@ -123,27 +122,39 @@ echo json_encode([
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 exit;
 
-function voboExpValidarSolicitud(string $token, string $siteId, string $listId, string $folio, string $folioNumero, string $etapa): void
+function voboExpValidarSolicitud(string $token, string $siteId, string $listId, string $folio, string $etapa): void
 {
-    $itemId = (string) ((int) ltrim($folioNumero, '0'));
-    if ($itemId === '0') throw new RuntimeException('El folio no contiene un item valido.');
-
+    $esperado = $etapa === 'cobranza' ? 'PENDIENTE COBRANZA' : 'PENDIENTE VOBO';
     $url = 'https://graph.microsoft.com/v1.0/sites/' . rawurlencode($siteId)
         . '/lists/' . rawurlencode($listId)
-        . '/items/' . rawurlencode($itemId)
-        . '?$expand=fields($select=Title,Solicitud_Grupo,field_1)';
-    $item = svCurlJson($url, 'GET', [
-        'Authorization: Bearer ' . $token,
-        'Accept: application/json',
-    ]);
-    $fields = is_array($item['fields'] ?? null) ? $item['fields'] : [];
-    $title = strtoupper(trim((string) ($fields['Title'] ?? '')));
-    $grupo = strtoupper(trim((string) ($fields['Solicitud_Grupo'] ?? '')));
-    if ($title !== $folio && $grupo !== $folio) throw new RuntimeException('El item no corresponde al folio solicitado.');
+        . '/items?$expand=fields($select=Title,Solicitud_Grupo,field_1)&$top=200';
+    $paginas = 0;
 
-    $esperado = $etapa === 'cobranza' ? 'PENDIENTE COBRANZA' : 'PENDIENTE VOBO';
-    $estatus = strtoupper(trim((string) ($fields['field_1'] ?? '')));
-    if ($estatus !== $esperado) throw new RuntimeException('La solicitud ya no esta pendiente en la etapa indicada.');
+    while ($url !== '' && $paginas < 50) {
+        $data = svCurlJson($url, 'GET', [
+            'Authorization: Bearer ' . $token,
+            'Accept: application/json',
+        ]);
+
+        foreach (($data['value'] ?? []) as $item) {
+            if (!is_array($item)) continue;
+            $fields = is_array($item['fields'] ?? null) ? $item['fields'] : [];
+            $title = strtoupper(trim((string) ($fields['Title'] ?? '')));
+            $grupo = strtoupper(trim((string) ($fields['Solicitud_Grupo'] ?? '')));
+            if ($title !== $folio && $grupo !== $folio) continue;
+
+            $estatus = strtoupper(trim((string) ($fields['field_1'] ?? '')));
+            if ($estatus !== $esperado) {
+                throw new RuntimeException('La solicitud ya no esta pendiente en la etapa indicada.');
+            }
+            return;
+        }
+
+        $url = trim((string) ($data['@odata.nextLink'] ?? ''));
+        $paginas++;
+    }
+
+    throw new RuntimeException('No se encontro la solicitud indicada.');
 }
 
 function voboExpDriveId(string $token, string $siteId): string

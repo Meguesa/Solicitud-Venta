@@ -142,8 +142,21 @@
     'PROCAP_NUMERO', 'PROCAP_ESTATUS', 'PROCAP_FECHA', 'PROCAP_CAPTURADO_POR'
   ]);
 
+  const btnAprobar = document.getElementById('btnAprobarVobo');
+  const btnSolicitarCorreccion = document.getElementById('btnSolicitarCorreccion');
+  const correctionPanel = document.getElementById('correctionPanel');
+  const correctionReason = document.getElementById('correctionReason');
+  const btnCancelCorrection = document.getElementById('btnCancelCorrection');
+  const btnConfirmCorrection = document.getElementById('btnConfirmCorrection');
+  const etapa = String(window.SOLICITUD_VOBO_ETAPA || 'comercial').toLowerCase();
+  const esCobranza = etapa === 'cobranza';
+
   document.getElementById('btnRecargar')?.addEventListener('click', cargarBandeja);
   document.getElementById('btnBack')?.addEventListener('click', mostrarBandeja);
+  btnAprobar?.addEventListener('click', aprobarVobo);
+  btnSolicitarCorreccion?.addEventListener('click', mostrarCorreccion);
+  btnCancelCorrection?.addEventListener('click', ocultarCorreccion);
+  btnConfirmCorrection?.addEventListener('click', enviarCorreccion);
 
   cargarBandeja();
 
@@ -349,6 +362,85 @@
     detailPanel.hidden = true;
     listPanel.hidden = false;
     listPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function obtenerFolioActual() {
+    const folio = String(document.getElementById('detailFolio')?.textContent || '').trim().toUpperCase();
+    return /^SV-\d{4}-\d{6,}$/.test(folio) ? folio : '';
+  }
+
+  function bloquearDecision(value) {
+    [btnAprobar, btnSolicitarCorreccion, btnCancelCorrection, btnConfirmCorrection].forEach((button) => {
+      if (button) button.disabled = Boolean(value);
+    });
+    if (correctionReason) correctionReason.disabled = Boolean(value);
+  }
+
+  async function aprobarVobo() {
+    const folio = obtenerFolioActual();
+    if (!folio) {
+      mostrarMensaje('No se pudo identificar el folio de la solicitud.', 'error');
+      return;
+    }
+
+    const destino = esCobranza
+      ? 'La solicitud quedará APROBADA.'
+      : 'La solicitud pasará a Vo.Bo. de Cobranza.';
+    const titulo = esCobranza ? 'Vo.Bo. de Cobranza' : 'Vo.Bo. Comercial';
+    if (!window.confirm(`¿Aprobar ${titulo} de ${folio}?\n\n${destino}`)) return;
+
+    bloquearDecision(true);
+    mostrarMensaje(`Aprobando ${folio}...`);
+    try {
+      const data = await llamarApi({ accion: 'aprobar', folio });
+      document.getElementById('detailStatus').textContent = data.estatus || (esCobranza ? 'APROBADA' : 'PENDIENTE COBRANZA');
+      mostrarMensaje(data.message || `${folio} aprobado correctamente.`, 'ok');
+      window.setTimeout(() => window.location.reload(), 900);
+    } catch (error) {
+      mostrarMensaje(error.message || String(error), 'error');
+      bloquearDecision(false);
+    }
+  }
+
+  function mostrarCorreccion() {
+    if (!correctionPanel) return;
+    correctionPanel.hidden = false;
+    correctionReason?.focus();
+    correctionPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function ocultarCorreccion() {
+    if (correctionPanel) correctionPanel.hidden = true;
+    if (correctionReason) correctionReason.value = '';
+  }
+
+  async function enviarCorreccion() {
+    const folio = obtenerFolioActual();
+    const motivo = String(correctionReason?.value || '').trim();
+    if (!folio) {
+      mostrarMensaje('No se pudo identificar el folio de la solicitud.', 'error');
+      return;
+    }
+    if (motivo.length < 5) {
+      correctionReason?.focus();
+      mostrarMensaje('Escribe un motivo de corrección claro antes de continuar.', 'error');
+      return;
+    }
+
+    const origen = esCobranza ? 'Cobranza' : 'Vo.Bo. Comercial';
+    if (!window.confirm(`¿Enviar ${folio} a CORRECCION desde ${origen}?\n\nEl motivo quedará registrado para el vendedor.`)) return;
+
+    bloquearDecision(true);
+    mostrarMensaje(`Enviando ${folio} a corrección...`);
+    try {
+      const data = await llamarApi({ accion: 'correccion', folio, motivo });
+      document.getElementById('detailStatus').textContent = data.estatus || 'CORRECCION';
+      mostrarMensaje(data.message || `Corrección solicitada para ${folio}.`, 'ok');
+      window.setTimeout(() => window.location.reload(), 900);
+    } catch (error) {
+      mostrarMensaje(error.message || String(error), 'error');
+      bloquearDecision(false);
+    }
   }
 
   async function llamarApi(payload) {
