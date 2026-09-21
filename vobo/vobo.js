@@ -1,5 +1,6 @@
 (() => {
   const API = '/api/solicitud-venta/vobo.php';
+  const NOTIFICACION_COBRANZA_API = '/api/solicitud-venta/notificar-cobranza.php';
   const listPanel = document.getElementById('listPanel');
   const detailPanel = document.getElementById('detailPanel');
   const requestsList = document.getElementById('requestsList');
@@ -393,9 +394,21 @@
     mostrarMensaje(`Aprobando ${folio}...`);
     try {
       const data = await llamarApi({ accion: 'aprobar', folio });
+      let avisoNotificacion = '';
+
+      if (!esCobranza) {
+        try {
+          const notificacion = await notificarCobranza(folio);
+          avisoNotificacion = ` ${notificacion.message || 'Se notificó al área de Cobranza.'}`;
+        } catch (notificationError) {
+          console.error('La solicitud avanzó a Cobranza pero falló la notificación:', notificationError);
+          avisoNotificacion = ' La solicitud sí pasó a Cobranza, pero no fue posible enviar la notificación automática.';
+        }
+      }
+
       document.getElementById('detailStatus').textContent = data.estatus || (esCobranza ? 'APROBADA' : 'PENDIENTE COBRANZA');
-      mostrarMensaje(data.message || `${folio} aprobado correctamente.`, 'ok');
-      window.setTimeout(() => window.location.reload(), 900);
+      mostrarMensaje((data.message || `${folio} aprobado correctamente.`) + avisoNotificacion, 'ok');
+      window.setTimeout(() => window.location.reload(), 1500);
     } catch (error) {
       mostrarMensaje(error.message || String(error), 'error');
       bloquearDecision(false);
@@ -441,6 +454,18 @@
       mostrarMensaje(error.message || String(error), 'error');
       bloquearDecision(false);
     }
+  }
+
+  async function notificarCobranza(folio) {
+    const response = await fetch(NOTIFICACION_COBRANZA_API, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folio })
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.ok) throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    return data;
   }
 
   async function llamarApi(payload) {

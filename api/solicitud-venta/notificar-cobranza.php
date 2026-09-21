@@ -6,8 +6,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
-require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
-require_once __DIR__ . '/_common.php';
+require_once __DIR__ . '/autorizacion.php';
 require_once __DIR__ . '/notificaciones.php';
 require_once __DIR__ . '/sharepoint-grupos.php';
 require_once __DIR__ . '/notificaciones-flujo.php';
@@ -26,10 +25,10 @@ function ncbError(int $status, string $code, string $message): void
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     ncbError(405, 'METHOD_NOT_ALLOWED', 'Metodo no permitido.');
 }
-if (!portal_is_authenticated()) {
+if (!svSolicitudEstaAutenticado()) {
     ncbError(401, 'AUTH_REQUIRED', 'La sesion del Portal Interno no esta activa.');
 }
-if (!portal_user_can_vobo()) {
+if (!svSolicitudCanVobo()) {
     ncbError(403, 'VOBO_FORBIDDEN', 'Tu cuenta no tiene autorizacion para notificar una aprobacion Comercial.');
 }
 
