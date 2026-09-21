@@ -11,6 +11,7 @@ require_once __DIR__ . '/notificaciones.php';
 require_once __DIR__ . '/notificaciones-flujo.php';
 require_once __DIR__ . '/sharepoint-grupos.php';
 require_once __DIR__ . '/pdf-final-lib.php';
+require_once __DIR__ . '/pdf-branding.php';
 require_once __DIR__ . '/pdf-final-layout.php';
 require_once __DIR__ . '/pdf-final-layout-v2.php';
 require_once __DIR__ . '/pdf-final-layout-v3.php';
