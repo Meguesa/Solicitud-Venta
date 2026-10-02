@@ -119,6 +119,13 @@ def main() -> None:
         shutil.rmtree(OUT_ROOT)
     shutil.copytree(SOURCE, OUT)
 
+    # El Preview solo expone la captura. No publicamos bandejas ni Vo.Bo. para
+    # evitar que una URL de pruebas pueda ejecutar flujos operativos.
+    for operational_dir in ("inicio", "vobo"):
+        target = OUT / operational_dir
+        if target.exists():
+            shutil.rmtree(target)
+
     index_php = OUT / "index.php"
     source = index_php.read_text(encoding="utf-8")
 
