@@ -1,0 +1,78 @@
+name: Publicar Solicitud de Venta Preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/catalogo-ui-2026
+    paths:
+      - "src/**"
+      - "index.php"
+      - "index.html"
+      - "tools/build_solicitud_package.py"
+      - "tools/build_preview_package.py"
+      - "tools/deploy_preview_ftps.sh"
+      - ".github/workflows/publicar-solicitud-preview.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-solicitud-preview
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Construir y publicar Preview aislado
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Descargar rama de pruebas
+        uses: actions/checkout@v6
+
+      - name: Construir paquete base sin publicar produccion
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/build_solicitud_package.py
+
+      - name: Construir Preview protegido
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/build_preview_package.py
+          test -s _preview/solicitud-venta-preview/index.php
+          test -s _preview/solicitud-venta-preview/index.html
+          test -s _preview/solicitud-venta-preview/preview-guard.js
+          test ! -d _preview/solicitud-venta-preview/vobo
+          test ! -d _preview/solicitud-venta-preview/inicio
+
+      - name: Preparar PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: json, openssl, curl, mbstring, fileinfo
+          coverage: none
+
+      - name: Validar PHP del Preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l _preview/solicitud-venta-preview/index.php
+
+      - name: Instalar cliente FTPS
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp
+
+      - name: Publicar solo /solicitud-venta-preview/
+        shell: bash
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          bash tools/deploy_preview_ftps.sh
