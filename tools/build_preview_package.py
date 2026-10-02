@@ -31,6 +31,7 @@ GUARD_JS = r"""(() => {
     if (typeof body !== 'string' || !body.trim().startsWith('{')) return false;
     try {
       const data = JSON.parse(body);
+      if (data?.prueba === true) return true;
       const accion = String(data?.accion || '').toLowerCase();
       return ['cargar', 'listar', 'detalle'].includes(accion);
     } catch (_) {
@@ -126,6 +127,11 @@ def main() -> None:
         if target.exists():
             shutil.rmtree(target)
 
+    catalog_source = ROOT / "src" / "js" / "catalogo-ui-preview.js"
+    if not catalog_source.is_file():
+        raise RuntimeError("Falta src/js/catalogo-ui-preview.js")
+    shutil.copy2(catalog_source, OUT / "catalogo-ui-preview.js")
+
     index_php = OUT / "index.php"
     source = index_php.read_text(encoding="utf-8")
 
@@ -153,7 +159,12 @@ if (!in_array($previewEmail, $previewAllowedEmails, true)) {{
         raise RuntimeError("No se encontro config.js en index.html")
     html = html.replace(
         script_marker,
-        '<script src="preview-guard.js?v=20261002-1"></script>\n  ' + script_marker,
+        '<script src="preview-guard.js?v=20261002-2"></script>\n  ' + script_marker,
+        1,
+    )
+    html = html.replace(
+        '</body>',
+        '  <script src="catalogo-ui-preview.js?v=20261002-1"></script>\n</body>',
         1,
     )
     index_html.write_text(html, encoding="utf-8")
