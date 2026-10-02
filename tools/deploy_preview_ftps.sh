@@ -27,7 +27,11 @@ set ssl:verify-certificate true
 set ssl:check-hostname true
 set net:timeout 30
 set net:max-retries 1
+mkdir -p solicitud-venta-preview
 LFTP
+
+declare -A CREATED_DIRS
+CREATED_DIRS["solicitud-venta-preview"]=1
 
 while IFS= read -r file; do
   relative="${file#${SOURCE_DIR}/}"
@@ -39,6 +43,11 @@ while IFS= read -r file; do
       exit 1
       ;;
   esac
+  remote_parent="${remote%/*}"
+  if [ -z "${CREATED_DIRS[$remote_parent]+x}" ]; then
+    printf "mkdir -p '%s'\n" "$remote_parent" >> "$BATCH"
+    CREATED_DIRS["$remote_parent"]=1
+  fi
   printf "put '%s' -o '%s'\n" "$file" "$remote" >> "$BATCH"
 done < <(find "$SOURCE_DIR" -type f | sort)
 
