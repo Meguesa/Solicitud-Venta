@@ -62,7 +62,7 @@ GUARD_JS = r"""(() => {
   };
 
   function bloquearAcciones() {
-    const patrones = /guardar|enviar|validar solicitud|aprobar|solicitar correcci[oó]n|firmar|subir|adjuntar/i;
+    const patrones = /guardar|enviar|aprobar|solicitar correcci[oó]n|firmar|subir|adjuntar/i;
 
     document.querySelectorAll('button, input[type="submit"]').forEach((control) => {
       const texto = String(control.textContent || control.value || '').trim();
@@ -159,12 +159,12 @@ if (!in_array($previewEmail, $previewAllowedEmails, true)) {{
         raise RuntimeError("No se encontro config.js en index.html")
     html = html.replace(
         script_marker,
-        '<script src="preview-guard.js?v=20261002-2"></script>\n  ' + script_marker,
+        '<script src="preview-guard.js?v=20261005-1"></script>\n  ' + script_marker,
         1,
     )
     html = html.replace(
         '</body>',
-        '  <script src="catalogo-ui-preview.js?v=20261002-1"></script>\n</body>',
+        '  <script src="catalogo-ui-preview.js?v=20261005-1"></script>\n</body>',
         1,
     )
     index_html.write_text(html, encoding="utf-8")
