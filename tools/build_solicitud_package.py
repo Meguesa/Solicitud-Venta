@@ -18,6 +18,7 @@ UI_FILE_MAP = {
     "src/js/auth.js": "auth.js",
     "src/js/app.js": "app.js",
     "src/js/componentes.js": "componentes.js",
+    "src/js/catalogo-ui.js": "catalogo-ui.js",
     "src/js/componentes-sync.js": "componentes-sync.js",
     "src/js/correccion-validacion.js": "correccion-validacion.js",
     "src/js/consentimiento-privacidad.js": "consentimiento-privacidad.js",
@@ -39,6 +40,7 @@ UI_FILE_MAP = {
 
 MODULES = [
     "componentes.js",
+    "catalogo-ui.js",
     "componentes-sync.js",
     "correccion-validacion.js",
     "consentimiento-privacidad.js",
