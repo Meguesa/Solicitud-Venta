@@ -345,11 +345,17 @@
 
     const sustituto = document.getElementById('sustitutoSection');
     if (sustituto) {
-      sustituto.hidden = false;
+      sustituto.hidden = hayUsoInmediato;
       sustituto.querySelectorAll('input, select, textarea').forEach((control) => {
-        control.required = true;
+        control.required = !hayUsoInmediato;
+        if (hayUsoInmediato && typeof control.setCustomValidity === 'function') control.setCustomValidity('');
       });
     }
+
+    const documentoSustituto = document.getElementById('documentoIdSustituto');
+    const documentoSustitutoLabel = documentoSustituto?.closest('label');
+    if (documentoSustitutoLabel) documentoSustitutoLabel.hidden = hayUsoInmediato;
+    if (hayUsoInmediato && documentoSustituto) documentoSustituto.checked = false;
 
     const tipoAnterior = document.getElementById('tipoSolicitud')?.closest('.form-section');
     if (tipoAnterior) tipoAnterior.hidden = true;

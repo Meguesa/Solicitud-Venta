@@ -392,7 +392,7 @@ function actualizarFormularioDinamico() {
   mostrarGrupo("propiedadFields", esPropiedad);
   mostrarGrupo("referenciasSection", esPropiedad);
   mostrarGrupo("financieraSection", esPropiedad);
-  mostrarGrupo("sustitutoSection", esServicio);
+  mostrarGrupo("sustitutoSection", esServicio && !esUsoInmediato);
   mostrarGrupo("usoInmediatoSection", esUsoInmediato);
 
   if (tipoSolicitud === "SERVICIO") {
