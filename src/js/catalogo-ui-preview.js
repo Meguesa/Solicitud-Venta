@@ -333,13 +333,97 @@
       `Precio de venta diferente al catálogo. Catálogo: ${moneda(item.precio)} · Venta: ${moneda(precioVenta)} · Diferencia: ${moneda(diferencia)}.`;
   }
 
+
+  function configurarIdentificacionAlternativa() {
+    const numeroId = document.getElementById('clienteNumeroId');
+    const rfc = document.getElementById('clienteRfc');
+    const curp = document.getElementById('clienteCurp');
+    const tipoId = document.getElementById('clienteTipoId');
+    if (!numeroId || !rfc || !curp || !tipoId) return;
+
+    [numeroId, rfc, curp, tipoId].forEach((control) => control.removeAttribute('required'));
+
+    const labels = [numeroId, rfc, curp].map((control) => control.closest('label')).filter(Boolean);
+    labels.forEach((label) => {
+      if (!label.querySelector('.id-alternative-note')) {
+        const note = document.createElement('small');
+        note.className = 'id-alternative-note';
+        note.textContent = 'Captura al menos uno entre Número de ID, RFC o CURP.';
+        note.style.color = 'var(--jp-muted)';
+        note.style.fontWeight = '400';
+        label.appendChild(note);
+      }
+    });
+
+    function validar() {
+      const tieneNumeroId = String(numeroId.value || '').trim() !== '';
+      const tieneRfc = String(rfc.value || '').trim() !== '';
+      const tieneCurp = String(curp.value || '').trim() !== '';
+      const alguno = tieneNumeroId || tieneRfc || tieneCurp;
+
+      numeroId.setCustomValidity(alguno ? '' : 'Captura al menos Número de ID, RFC o CURP.');
+      tipoId.setCustomValidity(tieneNumeroId && !tipoId.value
+        ? 'Selecciona el tipo de identificación para el Número de ID capturado.'
+        : '');
+    }
+
+    [numeroId, rfc, curp, tipoId].forEach((control) => {
+      control.addEventListener('input', validar);
+      control.addEventListener('change', validar);
+    });
+    validar();
+  }
+
+  function esSolicitudUsoInmediato() {
+    const principal = document.querySelector('#componentesContainer .component-card');
+    if (principal) {
+      return principal.querySelector('.component-operation')?.value === 'USO INMEDIATO';
+    }
+    return document.getElementById('tipoOperacion')?.value === 'USO INMEDIATO';
+  }
+
+  function actualizarTitularSustitutoUi() {
+    const section = document.getElementById('sustitutoSection');
+    if (!section) return;
+
+    const esUi = esSolicitudUsoInmediato();
+    section.hidden = esUi;
+
+    section.querySelectorAll('input, select, textarea').forEach((control) => {
+      control.required = !esUi;
+      if (esUi) control.setCustomValidity('');
+    });
+
+    const docSustituto = document.getElementById('documentoIdSustituto');
+    const docLabel = docSustituto?.closest('label');
+    if (docLabel) docLabel.hidden = esUi;
+    if (esUi && docSustituto) docSustituto.checked = false;
+  }
+
+  function configurarReglasUsoInmediato() {
+    actualizarTitularSustitutoUi();
+
+    const container = document.getElementById('componentesContainer');
+    if (container && container.dataset.uiRulesBound !== '1') {
+      container.dataset.uiRulesBound = '1';
+      container.addEventListener('change', () => {
+        window.setTimeout(actualizarTitularSustitutoUi, 0);
+      });
+    }
+
+    document.getElementById('tipoOperacion')?.addEventListener('change', actualizarTitularSustitutoUi);
+  }
+
   function prepararCards() {
     document.querySelectorAll('#componentesContainer .component-card').forEach(crearPanel);
     actualizarAdvertenciaPrecio();
+    actualizarTitularSustitutoUi();
   }
 
   function iniciar() {
     agregarEstilos();
+    configurarIdentificacionAlternativa();
+    configurarReglasUsoInmediato();
     asegurarAdvertenciaPrecio();
     prepararCards();
 
