@@ -447,20 +447,68 @@
     const token = await window.solicitudVentaAuth.getBackendAccessToken();
     if (!token) throw new Error("No fue posible obtener autorización para enviar la solicitud a Vo.Bo.");
 
-    const response = await fetch("/api/solicitud-venta/validar.php", {
+    const intentarEnvio = async () => {
+      const response = await fetch("/api/solicitud-venta/validar.php", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ folio })
+      });
+
+      const resultado = await response.json().catch(() => null);
+      if (!response.ok || !resultado?.ok) {
+        throw new Error(resultado?.message || resultado?.error || `HTTP ${response.status}`);
+      }
+      return resultado;
+    };
+
+    try {
+      return await intentarEnvio();
+    } catch (error) {
+      const mensaje = String(error?.message || error || "");
+      if (!/failed to fetch|networkerror|load failed/i.test(mensaje)) throw error;
+
+      // Si el navegador perdió la respuesta, primero verificamos si el servidor
+      // alcanzó a completar la transición antes de intentar nuevamente.
+      await new Promise((resolve) => window.setTimeout(resolve, 900));
+      const estado = await consultarEstadoSolicitud(folio, token).catch(() => null);
+      if (estado?.estatus === "PENDIENTE VOBO") {
+        return {
+          ok: true,
+          folio,
+          estatus: "PENDIENTE VOBO",
+          componentesActualizados: 0,
+          recuperadoTrasFalloRed: true
+        };
+      }
+
+      // Si sigue en BORRADOR, hacemos un único reintento seguro.
+      if (!estado || estado.estatus === "BORRADOR") {
+        return await intentarEnvio();
+      }
+
+      throw error;
+    }
+  }
+
+  async function consultarEstadoSolicitud(folio, token) {
+    const response = await fetch("/api/solicitud-venta/estado-solicitud.php", {
       method: "POST",
+      cache: "no-store",
+      credentials: "same-origin",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${token}`
       },
-      body: JSON.stringify({ folio })
+      body: JSON.stringify({ accion: "cargar", folio })
     });
-
-    const resultado = await response.json().catch(() => null);
-    if (!response.ok || !resultado?.ok) {
-      throw new Error(resultado?.message || resultado?.error || `HTTP ${response.status}`);
-    }
-    return resultado;
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.ok) return null;
+    return data;
   }
 
   function finalizarEnvioVoBo(resultado) {
