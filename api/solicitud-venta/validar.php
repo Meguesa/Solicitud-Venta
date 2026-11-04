@@ -277,28 +277,12 @@ function obtenerItemsGrupo(
     array $principal
 ): array {
     $campos = 'Title,field_1,Vendedor_Correo,Solicitud_Grupo,Componente_Numero,Componente_Total';
-    $filtro = "fields/Solicitud_Grupo eq '" . str_replace("'", "''", $grupo) . "'";
-    $query = http_build_query([
-        '$expand' => 'fields($select=' . $campos . ')',
-        '$filter' => $filtro,
-        '$top' => '200',
-    ], '', '&', PHP_QUERY_RFC3986);
 
-    $url = 'https://graph.microsoft.com/v1.0/sites/' . rawurlencode($siteId)
-        . '/lists/' . rawurlencode($listId) . '/items?' . $query;
-
-    try {
-        $respuesta = svCurlJson($url, 'GET', [
-            'Authorization: Bearer ' . $token,
-            'Accept: application/json',
-            'Prefer: HonorNonIndexedQueriesWarningMayFailRandomly',
-        ]);
-        $items = array_values(array_filter($respuesta['value'] ?? [], 'is_array'));
-        if ($items) return $items;
-    } catch (Throwable $filterError) {
-        error_log('Solicitud Venta filtro grupo VoBo: ' . $filterError->getMessage());
-    }
-
+    // Lectura determinista. La consulta anterior intentaba primero un filtro
+    // sobre Solicitud_Grupo con HonorNonIndexedQueriesWarningMayFailRandomly.
+    // SharePoint puede tardar demasiado o fallar de forma intermitente con ese
+    // patrón, dejando al navegador con "Failed to fetch". Para el volumen de
+    // Solicitudes_Venta es más estable recorrer las páginas y filtrar en PHP.
     $items = [];
     $url = 'https://graph.microsoft.com/v1.0/sites/' . rawurlencode($siteId)
         . '/lists/' . rawurlencode($listId)
@@ -309,12 +293,18 @@ function obtenerItemsGrupo(
             'Authorization: Bearer ' . $token,
             'Accept: application/json',
         ]);
+
         foreach (($respuesta['value'] ?? []) as $item) {
             if (!is_array($item)) continue;
             $fields = is_array($item['fields'] ?? null) ? $item['fields'] : [];
             $itemGrupo = strtoupper(trim((string) ($fields['Solicitud_Grupo'] ?? '')));
-            if ($itemGrupo === $grupo) $items[] = $item;
+            $title = strtoupper(trim((string) ($fields['Title'] ?? '')));
+
+            if ($itemGrupo === $grupo || ($itemGrupo === '' && $title === $grupo)) {
+                $items[] = $item;
+            }
         }
+
         $url = trim((string) ($respuesta['@odata.nextLink'] ?? ''));
     }
 
@@ -322,7 +312,10 @@ function obtenerItemsGrupo(
 
     $principalFields = is_array($principal['fields'] ?? null) ? $principal['fields'] : [];
     $principalGrupo = strtoupper(trim((string) ($principalFields['Solicitud_Grupo'] ?? '')));
-    if ($principalGrupo === '' || $principalGrupo === $grupo) return [$principal];
+    $principalTitle = strtoupper(trim((string) ($principalFields['Title'] ?? '')));
+    if ($principalGrupo === '' || $principalGrupo === $grupo || $principalTitle === $grupo) {
+        return [$principal];
+    }
 
     return [];
 }
