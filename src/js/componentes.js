@@ -200,6 +200,7 @@
           <select class="component-service-type">
             <option value="">Selecciona</option>
             <option>VELACION E INHUMACION</option>
+            <option>VELACION E INHUMACION (CON OPCION A CREMACION)</option>
             <option>VELACION Y CREMACION</option>
             <option>CREMACION DIRECTA</option>
             <option>INHUMACION DIRECTA</option>
