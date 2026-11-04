@@ -45,9 +45,26 @@ function svNotificarEntradaVoboComercial(
         $siteWebUrl,
         $grupo
     );
+
+    // Gerencia Comercial debe recibir siempre la notificacion de entrada a Vo.Bo.
+    // Se agregan sus integrantes aunque el grupo funcional de notificaciones
+    // haya quedado incompleto o desactualizado.
+    try {
+        $destinatarios = array_merge(
+            $destinatarios,
+            svSharePointCorreosGrupo(
+                $sharePointToken,
+                $siteWebUrl,
+                'Solicitud Venta - Gerencia Comercial'
+            )
+        );
+    } catch (Throwable $groupError) {
+        error_log('Solicitud Venta notificacion: no fue posible ampliar destinatarios con Gerencia Comercial: ' . $groupError->getMessage());
+    }
+
     $destinatarios = svNormalizarDestinatarios($destinatarios);
     if (!$destinatarios) {
-        throw new RuntimeException('El grupo ' . $grupo . ' no contiene correos validos.');
+        throw new RuntimeException('No se encontraron destinatarios validos para Vo.Bo. Comercial.');
     }
 
     $mailConfig = svNotificacionesConfig();
