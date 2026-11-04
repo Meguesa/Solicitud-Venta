@@ -281,9 +281,16 @@
       if (!folio) {
         if (typeof window.guardarBorrador !== 'function') throw new Error('La función de guardado del borrador no está disponible.');
         await window.guardarBorrador();
-        folio = folioActual();
+        folio = await esperarFolioGuardado();
       }
-      if (!folio) throw new Error('No fue posible crear o recuperar el folio de la solicitud.');
+      if (!folio) {
+        const mensajeFormulario = String(document.getElementById('formMessage')?.textContent || '').trim();
+        throw new Error(
+          mensajeFormulario && /no fue posible|error|faltan/i.test(mensajeFormulario)
+            ? mensajeFormulario
+            : 'No fue posible crear o recuperar el folio de la solicitud. Guarda el borrador e inténtalo nuevamente.'
+        );
+      }
 
       const contexto = construirContexto(folio);
       const url = construirUrlFinanciamiento(contexto);
@@ -507,6 +514,16 @@
 
   function estadoMarcador() {
     return valor('financiamientoIntegrado').toUpperCase();
+  }
+
+  async function esperarFolioGuardado(timeoutMs = 5000) {
+    const inicio = Date.now();
+    while (Date.now() - inicio < timeoutMs) {
+      const folio = folioActual();
+      if (folio) return folio;
+      await new Promise((resolve) => window.setTimeout(resolve, 120));
+    }
+    return '';
   }
 
   function folioActual() {
