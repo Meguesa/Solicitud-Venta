@@ -8,6 +8,7 @@ header('X-Content-Type-Options: nosniff');
 
 require_once rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''), '/') . '/api/solicitud-venta/autorizacion.php';
 require_once __DIR__ . '/_common.php';
+require_once __DIR__ . '/notificaciones-flujo.php';
 
 function voboError(int $status, string $code, string $message): void
 {
@@ -42,7 +43,7 @@ $raw = file_get_contents('php://input');
 $payload = json_decode(is_string($raw) ? $raw : '', true);
 if (!is_array($payload)) $payload = [];
 $accion = strtolower(trim((string) ($payload['accion'] ?? 'listar')));
-if (!in_array($accion, ['listar', 'detalle', 'aprobar', 'correccion'], true)) {
+if (!in_array($accion, ['listar', 'detalle', 'aprobar', 'correccion', 'notificacion_estado', 'notificacion_reintentar'], true)) {
     voboError(400, 'INVALID_ACTION', 'La accion solicitada no es valida.');
 }
 
@@ -138,6 +139,87 @@ foreach ($grupo as $item) {
 $estatusPrincipal = strtoupper(trim((string) ($principalFields['field_1'] ?? '')));
 if ($estatusPrincipal !== $estatusPendiente) {
     voboError(409, 'INVALID_STATUS', 'La solicitud ya no se encuentra pendiente en esta etapa. Actualiza la bandeja antes de continuar.');
+}
+
+if (in_array($accion, ['notificacion_estado', 'notificacion_reintentar'], true)) {
+    if ($etapa !== 'comercial') {
+        voboError(403, 'NOTIFICATION_STAGE_FORBIDDEN', 'Solo Gerencia Comercial puede gestionar esta notificacion.');
+    }
+
+    try {
+        $evidencia = svLeerEvidenciaNotificacion($graphToken, $config['siteId'], $folio);
+        $registroNotificacion = $evidencia['datos'];
+    } catch (Throwable $error) {
+        if (str_contains($error->getMessage(), 'HTTP 404') && $accion === 'notificacion_estado') {
+            echo json_encode([
+                'ok' => true, 'folio' => $folio, 'estado' => 'SIN_REGISTRO',
+                'reintentoPermitido' => false,
+                'message' => 'No existe evidencia de correo. No se permite reenvio automatico para evitar duplicados.',
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+        error_log('Solicitud Venta consulta notificacion ' . $folio . ': ' . $error->getMessage());
+        voboError(502, 'NOTIFICATION_AUDIT_FAILED', 'No fue posible consultar la evidencia de envio.');
+    }
+    $estadoNotificacion = strtoupper(trim((string) ($registroNotificacion['estado']
+        ?? (!empty($registroNotificacion['enviadoUtc']) ? 'ACEPTADO_POR_GRAPH' : 'SIN_CONFIRMACION'))));
+    $intentosNotificacion = max(1, (int) ($registroNotificacion['intentos'] ?? 1));
+    $puedeReintentar = $estadoNotificacion === 'NO_ENVIADO' && $intentosNotificacion < 3;
+
+    if ($accion === 'notificacion_estado') {
+        echo json_encode([
+            'ok' => true, 'folio' => $folio, 'estado' => $estadoNotificacion,
+            'intentos' => $intentosNotificacion,
+            'reintentoPermitido' => $puedeReintentar,
+            'message' => $estadoNotificacion === 'ACEPTADO_POR_GRAPH'
+                ? 'El envio fue aceptado por Microsoft Graph; no confirma entrega al buzon.'
+                : ($estadoNotificacion === 'SIN_CONFIRMACION' || $estadoNotificacion === 'REINTENTO_EN_PROCESO'
+                    ? 'Entrega sin confirmacion suficiente. Revisar manualmente antes de reenviar.'
+                    : 'Existe evidencia de rechazo; Gerencia Comercial puede realizar un reintento controlado.'),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    // No es posible garantizar exactamente-una-vez al enviar correos.
+    // Solo se reintenta si Graph rechazó la operación de manera explícita.
+    if (!$puedeReintentar) {
+        voboError(409, 'NOTIFICATION_RETRY_FORBIDDEN',
+            'El correo no tiene un rechazo confirmado, alcanzó el límite de intentos o ya fue aceptado.');
+    }
+
+    try {
+        svGuardarEvidenciaNotificacion(
+            $graphToken, $config['siteId'], $folio, '_NOTIFICACION_COMERCIAL.json',
+            [
+                'version' => 2, 'folio' => $folio, 'etapa' => 'VOBO_COMERCIAL',
+                'estado' => 'REINTENTO_EN_PROCESO',
+                'intentos' => $intentosNotificacion + 1,
+                'actualizadoUtc' => gmdate('c'),
+                'solicitadoPor' => (string) (svSolicitudUsuario()['email'] ?? ''),
+            ],
+            $evidencia['etag']
+        );
+    } catch (Throwable $error) {
+        error_log('Solicitud Venta control reintento notificacion ' . $folio . ': ' . $error->getMessage());
+        voboError(409, 'NOTIFICATION_RETRY_CONFLICT',
+            'El estado del correo cambió o no fue posible reservar el reintento. No se envió un correo nuevo.');
+    }
+
+    try {
+        $envio = svNotificarEntradaVoboComercial(
+            $graphToken, $config, $folio, $principalFields, count($grupo), $intentosNotificacion + 1
+        );
+        echo json_encode([
+            'ok' => true, 'folio' => $folio, 'estado' => 'ACEPTADO_POR_GRAPH',
+            'reintentoPermitido' => false,
+            'message' => 'Reenvio aceptado por Microsoft Graph. La entrega final debe comprobarse en el correo.',
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    } catch (Throwable $error) {
+        error_log('Solicitud Venta reintento correo Comercial ' . $folio . ': ' . $error->getMessage());
+        voboError(502, 'NOTIFICATION_RETRY_FAILED',
+            'No se pudo confirmar el reenvio. Consulta el estado antes de intentar otra accion.');
+    }
+    exit;
 }
 
 try {
