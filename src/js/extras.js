@@ -297,6 +297,7 @@
       if (envioEnCurso) return;
 
       if (typeof window.actualizarRequiredVisibles === "function") window.actualizarRequiredVisibles();
+      if (typeof window.validarIdentificacionCliente === "function") window.validarIdentificacionCliente();
       if (typeof window.actualizarInformacionLaboral === "function") window.actualizarInformacionLaboral();
 
       const validacionComponentes = typeof window.solicitudVentaComponentesValidar === "function"
