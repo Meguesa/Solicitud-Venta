@@ -1,6 +1,9 @@
 name: Publicar Solicitud de Venta independiente en cPanel
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -23,11 +26,40 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-solicitud-independiente
+  group: solicitud-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  qa:
+    if: github.event_name == 'pull_request'
+    name: Verificación aislada (sin publicar)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Descargar repositorio para auditoría
+        uses: actions/checkout@v6
+      - name: Preparar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: json, curl, openssl, mbstring
+          coverage: none
+      - name: Validar sintaxis de todo PHP
+        shell: bash
+        run: |
+          set -euo pipefail
+          find api vobo -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l index.php
+      - name: Validar sintaxis de JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          find src/js vobo -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Construir paquete (sin FTP ni correos)
+        run: python3 tools/build_solicitud_package.py
+
   deploy:
+    if: github.event_name != 'pull_request'
     name: Construir y publicar Solicitud de Venta
     runs-on: ubuntu-latest
     timeout-minutes: 30
