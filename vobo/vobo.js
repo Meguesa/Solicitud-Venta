@@ -501,7 +501,12 @@
     const response = await fetch(API, {
       method: 'POST',
       cache: 'no-store',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(payload?.accion === 'notificacion_reintentar'
+          ? { 'X-SV-Notification-Retry': String(window.SOLICITUD_RETRY_TOKEN || '') }
+          : {})
+      },
       body: JSON.stringify(payload)
     });
     const data = await response.json().catch(() => null);
