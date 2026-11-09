@@ -54,6 +54,7 @@ try {
 
     $principalFields = is_array($principal['fields'] ?? null) ? $principal['fields'] : [];
     validarPrincipal($principalFields, $folio, $correoUsuario);
+    svValidarIdentificacionPrincipal($principalFields);
 
     $solicitudGrupo = strtoupper(trim((string) ($principalFields['Solicitud_Grupo'] ?? '')));
     if ($solicitudGrupo === '') $solicitudGrupo = $folio;
@@ -290,6 +291,23 @@ function obtenerItemPrincipal(string $token, string $siteId, string $listId, str
 }
 
 /** @param array<string,mixed> $fields */
+/** La solicitud debe tener por lo menos una identificación del cliente. */
+function svValidarIdentificacionPrincipal(array $fields): void
+{
+    $id = trim((string) ($fields['field_5'] ?? ''));
+    $rfc = trim((string) ($fields['field_6'] ?? ''));
+    $curp = trim((string) ($fields['field_7'] ?? ''));
+    $tipo = trim((string) ($fields['Cliente_Tipo_ID'] ?? ''));
+    if ($id === '' && $rfc === '' && $curp === '') {
+        svResponderError(409, 'CLIENT_IDENTIFICATION_REQUIRED',
+            'Captura al menos uno: numero de identificacion, RFC o CURP antes de enviar.');
+    }
+    if ($id !== '' && $tipo === '') {
+        svResponderError(409, 'CLIENT_ID_TYPE_REQUIRED',
+            'Selecciona el tipo de identificacion del numero capturado.');
+    }
+}
+
 function validarPrincipal(array $fields, string $folio, string $correoUsuario): void
 {
     $title = strtoupper(trim((string) ($fields['Title'] ?? '')));
