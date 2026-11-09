@@ -302,3 +302,37 @@ function svPermisoReintentoNotificacion(array $evidencia): array
         'reintentoPermitido' => $estado === 'NO_ENVIADO' && $intentos < 3,
     ];
 }
+
+/**
+ * Reserva atomica del intento. El nombre fijo con conflictBehavior=fail
+ * impide que dos sesiones reenvien el mismo folio/intento simultaneamente.
+ * La carpeta pequeña se conserva como evidencia de operación.
+ */
+function svReservarReintentoComercial(string $token, string $siteId, string $folio, int $intento): void
+{
+    if ($intento < 2 || $intento > 3) {
+        throw new RuntimeException('El intento de notificacion solicitado esta fuera del limite.');
+    }
+    $driveId = svObtenerDriveExpedientesNotificaciones($token, $siteId);
+    $folderUrl = 'https://graph.microsoft.com/v1.0/drives/' . rawurlencode($driveId)
+        . '/root:/' . rawurlencode($folio) . ':';
+    $folder = svCurlJson($folderUrl, 'GET', [
+        'Authorization: Bearer ' . $token,
+        'Accept: application/json',
+    ]);
+    $folderId = trim((string) ($folder['id'] ?? ''));
+    if ($folderId === '') throw new RuntimeException('No fue posible consultar la carpeta de evidencias.');
+
+    $payload = json_encode([
+        'name' => '_REINTENTO_CORREO_COMERCIAL_' . $intento,
+        'folder' => new stdClass(),
+        '@microsoft.graph.conflictBehavior' => 'fail',
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if (!is_string($payload)) throw new RuntimeException('No fue posible serializar la reserva del intento.');
+    svCurlJson('https://graph.microsoft.com/v1.0/drives/' . rawurlencode($driveId)
+        . '/items/' . rawurlencode($folderId) . '/children', 'POST', [
+            'Authorization: Bearer ' . $token,
+            'Accept: application/json',
+            'Content-Type: application/json',
+        ], $payload);
+}
