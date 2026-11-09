@@ -290,9 +290,11 @@
     if (!form || form.dataset.extrasSubmitIntercepted === "1") return;
     form.dataset.extrasSubmitIntercepted = "1";
 
+    let envioEnCurso = false;
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       event.stopImmediatePropagation();
+      if (envioEnCurso) return;
 
       if (typeof window.actualizarRequiredVisibles === "function") window.actualizarRequiredVisibles();
       if (typeof window.actualizarInformacionLaboral === "function") window.actualizarInformacionLaboral();
@@ -323,22 +325,29 @@
         return;
       }
 
-      let folio = obtenerFolioActual();
-      if (!folio) {
-        mostrarMensajeExtra("Guardando borrador antes de registrar las firmas...");
-        await window.guardarBorrador();
-        folio = obtenerFolioActual();
-      }
-
-      if (!folio) {
-        mostrarMensajeExtra("No fue posible obtener un folio para guardar las firmas.", "error");
-        return;
-      }
-
+      envioEnCurso = true;
       const validarButton = document.getElementById("btnValidate");
       if (validarButton) validarButton.disabled = true;
+      let enviado = false;
 
       try {
+        // Siempre persistir los datos y TODOS los componentes de la captura
+        // inmediatamente antes del Vo.Bo. No confiar en el último borrador:
+        // el vendedor pudo haber agregado/eliminado componentes después.
+        mostrarMensajeExtra("Guardando y verificando todos los componentes...");
+        const guardadoOk = await window.guardarBorrador();
+        if (guardadoOk !== true || window.__solicitudComponentesUltimaSincronizacionOk !== true) {
+          throw new Error(
+            "No se pudieron sincronizar todos los componentes con SharePoint. " +
+            "Revisa el mensaje de guardado y vuelve a intentarlo antes de enviar."
+          );
+        }
+
+        const folio = obtenerFolioActual();
+        if (!folio) {
+          throw new Error("No fue posible recuperar el folio del borrador guardado.");
+        }
+
         mostrarMensajeExtra("Guardando documentación y firmas...");
         await subirPendientes(folio, true);
         await refrescarEstadoPersistente();
@@ -346,10 +355,13 @@
         mostrarMensajeExtra("Enviando solicitud al flujo de Vo.Bo...");
         const resultado = await enviarSolicitudVoBo(folio);
         finalizarEnvioVoBo(resultado);
+        enviado = true;
       } catch (error) {
         console.error("Error al preparar la solicitud:", error);
-        if (validarButton) validarButton.disabled = false;
         mostrarMensajeExtra(`No fue posible completar la validación: ${error.message || error}`, "error");
+      } finally {
+        envioEnCurso = false;
+        if (validarButton && !enviado) validarButton.disabled = false;
       }
     }, true);
   }
