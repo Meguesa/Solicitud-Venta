@@ -161,10 +161,10 @@ if (in_array($accion, ['notificacion_estado', 'notificacion_reintentar'], true))
         error_log('Solicitud Venta consulta notificacion ' . $folio . ': ' . $error->getMessage());
         voboError(502, 'NOTIFICATION_AUDIT_FAILED', 'No fue posible consultar la evidencia de envio.');
     }
-    $estadoNotificacion = strtoupper(trim((string) ($registroNotificacion['estado']
-        ?? (!empty($registroNotificacion['enviadoUtc']) ? 'ACEPTADO_POR_GRAPH' : 'SIN_CONFIRMACION'))));
-    $intentosNotificacion = max(1, (int) ($registroNotificacion['intentos'] ?? 1));
-    $puedeReintentar = $estadoNotificacion === 'NO_ENVIADO' && $intentosNotificacion < 3;
+    $politicaReintento = svPermisoReintentoNotificacion($registroNotificacion);
+    $estadoNotificacion = $politicaReintento['estado'];
+    $intentosNotificacion = $politicaReintento['intentos'];
+    $puedeReintentar = $politicaReintento['reintentoPermitido'];
 
     if ($accion === 'notificacion_estado') {
         echo json_encode([
