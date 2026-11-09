@@ -1,6 +1,7 @@
 let borradorActual = {
   itemId: "",
-  folio: ""
+  folio: "",
+  revision: ""
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -64,7 +65,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("btnReset").addEventListener("click", () => {
     form.reset();
-    borradorActual = { itemId: "", folio: "" };
+    borradorActual = { itemId: "", folio: "", revision: "" };
     inicializarFecha();
     copiarUsuarioEnVendedor();
     actualizarFormularioDinamico();
@@ -538,6 +539,7 @@ function construirPayloadBorrador() {
     accion: "guardar_borrador",
     itemId: borradorActual.itemId,
     folio: borradorActual.folio,
+    revision: borradorActual.revision || "",
     tipoSolicitud: valor("tipoSolicitud"), tipoOperacion: valor("tipoOperacion"), tipoVentaProcap: valor("tipoVentaProcap"),
     fechaSolicitud: valor("fechaSolicitud"), referencia: valor("referencia"), origenVenta: valor("origenVenta"), lugar: valor("lugar"),
     tipoContrato: valor("tipoContrato"),
@@ -619,6 +621,7 @@ async function guardarBorrador() {
 
     borradorActual.itemId = String(resultado.itemId || borradorActual.itemId || "");
     borradorActual.folio = String(resultado.folio || borradorActual.folio || "");
+    borradorActual.revision = String(resultado.revision || "");
     actualizarFolio(borradorActual.folio);
     mostrarMensaje(`Borrador ${borradorActual.folio} guardado correctamente en SharePoint.`, "ok");
     return true;
@@ -630,6 +633,27 @@ async function guardarBorrador() {
     saveButton.disabled = false;
   }
 }
+
+async function refrescarRevisionBorrador(folio, itemId) {
+  const token = await window.solicitudVentaAuth.getBackendAccessToken();
+  if (!token) throw new Error("La sesión expiró antes de obtener la versión del borrador.");
+  const response = await fetch("/api/solicitud-venta/borrador.php", {
+    method: "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+    body: JSON.stringify({ accion: "consultar_revision", folio, itemId })
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok || !result?.ok || !result.revision) {
+    throw new Error(result?.message || result?.error || `HTTP ${response.status}`);
+  }
+  if (borradorActual.folio !== folio || String(borradorActual.itemId) !== String(itemId)) {
+    throw new Error("El borrador activo cambió durante la consulta de versión.");
+  }
+  borradorActual.revision = String(result.revision);
+  return borradorActual.revision;
+}
+window.solicitudVentaRefrescarRevision = refrescarRevisionBorrador;
 
 function mostrarMensaje(texto, tipo = "") {
   const mensaje = document.getElementById("formMessage");
