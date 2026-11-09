@@ -568,14 +568,14 @@ async function guardarBorrador() {
 
   if (!payload.tipoSolicitud || !payload.tipoOperacion || !payload.tipoVentaProcap || !payload.fechaSolicitud) {
     mostrarMensaje("Para crear el borrador selecciona Tipo de solicitud, Tipo de operación y Fecha.", "error");
-    return;
+    return false;
   }
 
   try {
     saveButton.disabled = true;
     mostrarMensaje(borradorActual.itemId ? "Actualizando borrador en SharePoint..." : "Guardando borrador en SharePoint...");
     const token = await window.solicitudVentaAuth.getBackendAccessToken();
-    if (!token) return;
+    if (!token) return false;
 
     const response = await fetch("/api/solicitud-venta/borrador.php", {
       method: "POST",
@@ -590,9 +590,11 @@ async function guardarBorrador() {
     borradorActual.folio = String(resultado.folio || borradorActual.folio || "");
     actualizarFolio(borradorActual.folio);
     mostrarMensaje(`Borrador ${borradorActual.folio} guardado correctamente en SharePoint.`, "ok");
+    return true;
   } catch (error) {
     console.error("Error al guardar borrador:", error);
     mostrarMensaje(`No fue posible guardar el borrador: ${error.message || error}`, "error");
+    return false;
   } finally {
     saveButton.disabled = false;
   }
