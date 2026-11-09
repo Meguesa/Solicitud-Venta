@@ -539,9 +539,14 @@
     if (guardar) guardar.disabled = true;
     if (validar) validar.disabled = true;
 
+    const avisoComercial = resultado?.notificacionComercial;
+    const avisoPendiente = avisoComercial && avisoComercial.enviado !== true;
     mostrarMensajeExtra(
-      `Solicitud ${folio} enviada a Vo.Bo. correctamente${total ? ` con ${total} componente(s)` : ""}. Estatus: ${estatus}.`,
-      "ok"
+      `Solicitud ${folio} enviada a Vo.Bo. correctamente${total ? ` con ${total} componente(s)` : ""}. Estatus: ${estatus}.`
+      + (avisoPendiente
+        ? " Atención: no se confirmó el aviso por correo a Gerencia Comercial. Comunícate con el área para revisar la bandeja y el estado de notificación."
+        : ""),
+      avisoPendiente ? "error" : "ok"
     );
   }
 
