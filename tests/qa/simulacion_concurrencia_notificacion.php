@@ -41,13 +41,15 @@ qaAssert(str_contains($notificaciones, "':?\$select=id,eTag'"), 'URL Graph metad
 qaAssert(str_contains($notificaciones, "'If-Match: ' . \$ifMatch"), 'Control condicional de evidencia');
 qaAssert(str_contains($notificaciones, "'@microsoft.graph.conflictBehavior' => 'fail'"),
     'Reserva rechaza intento ya existente');
-qaAssert(str_contains($notificaciones, "'_REINTENTO_CORREO_COMERCIAL_' . $intento"),
+qaAssert(str_contains($notificaciones, "'_REINTENTO_CORREO_COMERCIAL_' . \$intento"),
     'Reserva identificada por numero de intento');
 $vobo = file_get_contents(__DIR__ . '/../../api/solicitud-venta/vobo.php');
 qaAssert(str_contains($vobo, "NOTIFICATION_CSRF_INVALID"), 'Reintento exige protección de sesión');
-qaAssert(strpos($vobo, 'svReservarReintentoComercial(') <
-    strpos($vobo, "svGuardarEvidenciaNotificacion(\n            \$graphToken, \$config['siteId']"),
-    'Reserva debe suceder antes de intentar el correo');
+qaAssert(strpos($vobo, 'svReservarReintentoComercial(') !== false
+    && strpos($vobo, 'svNotificarEntradaVoboComercial(') !== false
+    && strpos($vobo, 'svReservarReintentoComercial(') <
+       strpos($vobo, 'svNotificarEntradaVoboComercial('),
+    'Reserva debe suceder antes del envio');
 
 $source = file_get_contents(__DIR__ . '/../../api/solicitud-venta/borrador.php');
 $start = strpos($source, 'function versionItemSharePoint(');
