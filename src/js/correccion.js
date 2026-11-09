@@ -229,7 +229,10 @@
       if (typeof window.guardarBorrador !== "function") {
         throw new Error("No fue posible localizar el guardado del borrador.");
       }
-      await window.guardarBorrador();
+      const guardado = await window.guardarBorrador();
+      if (guardado !== true) {
+        throw new Error('Los cambios de la corrección no se guardaron. Revisa el mensaje del formulario.');
+      }
 
       // firma-remota.js intercepta el click cuando la modalidad es REMOTA. En una
       // correccion ya firmada la omitimos temporalmente y dejamos que extras.js

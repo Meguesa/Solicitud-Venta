@@ -2,6 +2,27 @@
 
 declare(strict_types=1);
 
+/**
+ * Regla pura para validar identificacion: uno entre numero ID, RFC o CURP.
+ * Si se captura numero ID, tambien debe incluir el tipo de documento.
+ * @return array{ok:bool,error:string}
+ */
+function svIdentificacionClienteValida(array $fields): array
+{
+    $numero = trim((string) ($fields['field_5'] ?? ''));
+    $rfc = trim((string) ($fields['field_6'] ?? ''));
+    $curp = trim((string) ($fields['field_7'] ?? ''));
+    $tipo = trim((string) ($fields['Cliente_Tipo_ID'] ?? ''));
+
+    if ($numero === '' && $rfc === '' && $curp === '') {
+        return ['ok' => false, 'error' => 'CLIENT_IDENTIFICATION_REQUIRED'];
+    }
+    if ($numero !== '' && $tipo === '') {
+        return ['ok' => false, 'error' => 'CLIENT_ID_TYPE_REQUIRED'];
+    }
+    return ['ok' => true, 'error' => ''];
+}
+
 function svResponderError(int $status, string $code, string $message): void
 {
     http_response_code($status);

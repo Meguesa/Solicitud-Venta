@@ -62,6 +62,20 @@ try {
     responderError(502, 'SHAREPOINT_CONNECTION_FAILED', 'No fue posible validar la conexion con SharePoint: ' . $error->getMessage());
 }
 
+if (($payload['accion'] ?? '') === 'consultar_revision') {
+    $itemIdRevision = trim((string) ($payload['itemId'] ?? ''));
+    $folioRevision = strtoupper(trim((string) ($payload['folio'] ?? '')));
+    if (!ctype_digit($itemIdRevision) || (int) $itemIdRevision < 1
+        || !preg_match('/^SV-\d{4}-\d{6,}$/', $folioRevision)) {
+        responderError(400, 'INVALID_DRAFT_REFERENCE', 'La referencia del borrador no es valida.');
+    }
+    verificarBorradorUsuario($graphToken, $sharePointSiteId, $sharePointListId, $itemIdRevision, $usuario['correo'], $folioRevision);
+    $revision = versionItemSharePoint($graphToken, $sharePointSiteId, $sharePointListId, $itemIdRevision);
+    if ($revision === '') responderError(502, 'DRAFT_REVISION_UNAVAILABLE', 'No fue posible consultar la version del borrador.');
+    echo json_encode(['ok' => true, 'revision' => $revision, 'itemId' => $itemIdRevision], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
 if (($payload['accion'] ?? '') === 'guardar_borrador') {
     $tipoSolicitud = strtoupper(trim((string) ($payload['tipoSolicitud'] ?? '')));
     $tipoOperacion = strtoupper(trim((string) ($payload['tipoOperacion'] ?? '')));
@@ -76,6 +90,14 @@ if (($payload['accion'] ?? '') === 'guardar_borrador') {
     }
     if ($itemId !== '' && !ctype_digit($itemId)) {
         responderError(400, 'INVALID_ITEM_ID', 'El identificador del borrador no es valido.');
+    }
+    $revisionEsperada = trim((string) ($payload['revision'] ?? ''));
+    if ($itemId !== '' && $revisionEsperada === '') {
+        responderError(409, 'DRAFT_REVISION_REQUIRED',
+            'La version del borrador no esta cargada. Reabre el borrador desde Mis solicitudes para evitar sobrescribir datos de otra sesion.');
+    }
+    if ($revisionEsperada !== '' && (strlen($revisionEsperada) > 180 || str_contains($revisionEsperada, "\r") || str_contains($revisionEsperada, "\n"))) {
+        responderError(400, 'INVALID_DRAFT_REVISION', 'La version del borrador no es valida.');
     }
 
     try {
@@ -113,10 +135,19 @@ if (($payload['accion'] ?? '') === 'guardar_borrador') {
     }
 
     // Informacion del cliente.
-    agregarTexto($fields, 'Cliente_Tipo_ID', $payload, 'clienteTipoId');
-    agregarTexto($fields, 'field_5', $payload, 'clienteNumeroId');
-    agregarTexto($fields, 'field_6', $payload, 'clienteRfc');
-    agregarTexto($fields, 'field_7', $payload, 'clienteCurp');
+    // Respetar también los campos vacíos cuando el usuario corrige su captura.
+    // Antes un RFC/ID eliminado continuaba persistido en SharePoint porque
+    // agregarTexto omitía las cadenas vacías.
+    foreach ([
+        'Cliente_Tipo_ID' => 'clienteTipoId',
+        'field_5' => 'clienteNumeroId',
+        'field_6' => 'clienteRfc',
+        'field_7' => 'clienteCurp',
+    ] as $columna => $clave) {
+        if (array_key_exists($clave, $payload)) {
+            $fields[$columna] = trim((string) ($payload[$clave] ?? ''));
+        }
+    }
     agregarTexto($fields, 'field_8', $payload, 'clienteNombres');
 
     $apellidos = trim(textoPayload($payload, 'clienteApellidoPaterno') . ' ' . textoPayload($payload, 'clienteApellidoMaterno'));
@@ -293,17 +324,24 @@ if (($payload['accion'] ?? '') === 'guardar_borrador') {
             $status = 201;
             $mensaje = 'Borrador creado correctamente.';
         } else {
-            verificarBorradorUsuario($graphToken, $sharePointSiteId, $sharePointListId, $itemId, $usuario['correo']);
+            verificarBorradorUsuario($graphToken, $sharePointSiteId, $sharePointListId, $itemId, $usuario['correo'], $folio);
             if ($solicitudGrupo === '' && $folio !== '') $fields['Solicitud_Grupo'] = $folio;
-            actualizarCamposItemSharePoint($graphToken, $sharePointSiteId, $sharePointListId, $itemId, $fields);
+            actualizarCamposItemSharePoint($graphToken, $sharePointSiteId, $sharePointListId, $itemId, $fields, $revisionEsperada);
             if ($folio === '') $folio = 'SV-' . gmdate('Y') . '-' . str_pad($itemId, 6, '0', STR_PAD_LEFT);
             $status = 200;
             $mensaje = 'Borrador actualizado correctamente.';
         }
     } catch (Throwable $error) {
         error_log('Solicitud Venta guardar borrador: ' . $error->getMessage());
+        if (str_contains($error->getMessage(), 'HTTP 412')) {
+            responderError(409, 'DRAFT_CONFLICT',
+                'Este borrador fue modificado en otra pestaña o sesion. No se guardaron tus cambios. Reabre el borrador para revisar la version actual.');
+        }
         responderError(502, 'DRAFT_SAVE_FAILED', 'No fue posible guardar el borrador en SharePoint: ' . $error->getMessage());
     }
+
+    $revisionActual = versionItemSharePoint($graphToken, $sharePointSiteId, $sharePointListId, $itemId);
+    if ($revisionActual === '') responderError(502, 'DRAFT_REVISION_UNAVAILABLE', 'Se guardo el borrador, pero no fue posible recuperar su version.');
 
     http_response_code($status);
     echo json_encode([
@@ -312,6 +350,7 @@ if (($payload['accion'] ?? '') === 'guardar_borrador') {
         'folio' => $folio,
         'solicitudGrupo' => $solicitudGrupo !== '' ? $solicitudGrupo : $folio,
         'itemId' => $itemId,
+        'revision' => $revisionActual,
         'usuario' => $usuario,
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
@@ -538,25 +577,42 @@ function crearItemSharePoint(string $graphToken, string $siteId, string $listId,
     ], $body);
 }
 
-function actualizarCamposItemSharePoint(string $graphToken, string $siteId, string $listId, string $itemId, array $fields): void
+
+/** Devuelve la versión del registro principal para evitar sobrescrituras. */
+function versionItemSharePoint(string $graphToken, string $siteId, string $listId, string $itemId): string
+{
+    $url = 'https://graph.microsoft.com/v1.0/sites/' . rawurlencode($siteId)
+        . '/lists/' . rawurlencode($listId) . '/items/' . rawurlencode($itemId)
+        . '?$select=id,eTag';
+    $item = ejecutarCurlJson($url, 'GET', [
+        'Authorization: Bearer ' . $graphToken,
+        'Accept: application/json',
+        'Cache-Control: no-store',
+    ]);
+    return trim((string) ($item['eTag'] ?? $item['@odata.etag'] ?? ''));
+}
+
+function actualizarCamposItemSharePoint(string $graphToken, string $siteId, string $listId, string $itemId, array $fields, string $revision = ''): void
 {
     $url = 'https://graph.microsoft.com/v1.0/sites/' . rawurlencode($siteId) . '/lists/' . rawurlencode($listId) . '/items/' . rawurlencode($itemId) . '/fields';
     $body = json_encode($fields, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     if (!is_string($body)) throw new RuntimeException('No fue posible serializar la actualizacion del borrador.');
 
-    ejecutarCurlJson($url, 'PATCH', [
+    $headers = [
         'Authorization: Bearer ' . $graphToken,
         'Accept: application/json',
         'Content-Type: application/json',
-    ], $body);
+    ];
+    if ($revision !== '') $headers[] = 'If-Match: ' . $revision;
+    ejecutarCurlJson($url, 'PATCH', $headers, $body);
 }
 
-function verificarBorradorUsuario(string $graphToken, string $siteId, string $listId, string $itemId, string $correoUsuario): void
+function verificarBorradorUsuario(string $graphToken, string $siteId, string $listId, string $itemId, string $correoUsuario, string $folio): void
 {
     $url = 'https://graph.microsoft.com/v1.0/sites/' . rawurlencode($siteId)
         . '/lists/' . rawurlencode($listId)
         . '/items/' . rawurlencode($itemId)
-        . '?$expand=fields($select=Title,field_1,Vendedor_Correo)';
+        . '?$expand=fields($select=Title,field_1,Vendedor_Correo,Solicitud_Grupo)';
 
     $item = ejecutarCurlJson($url, 'GET', ['Authorization: Bearer ' . $graphToken, 'Accept: application/json']);
     $fields = is_array($item['fields'] ?? null) ? $item['fields'] : [];
@@ -564,6 +620,12 @@ function verificarBorradorUsuario(string $graphToken, string $siteId, string $li
     $correoBorrador = strtolower(trim((string) ($fields['Vendedor_Correo'] ?? '')));
     $correoUsuario = strtolower(trim($correoUsuario));
 
+    $title = strtoupper(trim((string) ($fields['Title'] ?? '')));
+    $grupo = strtoupper(trim((string) ($fields['Solicitud_Grupo'] ?? '')));
+    $folio = strtoupper(trim($folio));
+    if ($folio === '' || ($title !== $folio && $grupo !== $folio)) {
+        throw new RuntimeException('El folio no corresponde al item del borrador. No se modificaron datos.');
+    }
     if ($estado !== 'BORRADOR') throw new RuntimeException('La solicitud ya no esta en estado BORRADOR y no puede editarse con esta accion.');
     if ($correoBorrador === '' || $correoUsuario === '' || !hash_equals($correoBorrador, $correoUsuario)) {
         throw new RuntimeException('El borrador no pertenece al usuario autenticado.');

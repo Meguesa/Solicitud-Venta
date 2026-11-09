@@ -109,7 +109,10 @@
     try {
       validarFormularioRemoto();
       mostrarMensaje("Guardando la solicitud antes de generar el enlace de firma...");
-      await window.guardarBorrador();
+      const guardado = await window.guardarBorrador();
+      if (guardado !== true || window.__solicitudComponentesUltimaSincronizacionOk !== true) {
+        throw new Error("No se guardaron todos los componentes. Revisa el mensaje del borrador antes de solicitar firma remota.");
+      }
 
       const folio = obtenerFolioActual();
       if (!folio) throw new Error("No fue posible obtener el folio de la solicitud.");
@@ -136,6 +139,7 @@
 
   function validarFormularioRemoto() {
     if (typeof window.actualizarRequiredVisibles === "function") window.actualizarRequiredVisibles();
+    if (typeof window.validarIdentificacionCliente === "function") window.validarIdentificacionCliente();
     if (typeof window.actualizarInformacionLaboral === "function") window.actualizarInformacionLaboral();
 
     const validacionComponentes = typeof window.solicitudVentaComponentesValidar === "function"

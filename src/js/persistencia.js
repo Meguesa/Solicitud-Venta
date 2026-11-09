@@ -195,6 +195,7 @@
       if (typeof borradorActual !== 'undefined') {
         borradorActual.itemId = String(data.itemId || referencia.itemId || '');
         borradorActual.folio = String(data.folio || referencia.folio || '');
+        borradorActual.revision = String(data.revision || '');
       }
       if (typeof window.actualizarFolio === 'function') window.actualizarFolio(data.folio || referencia.folio);
 

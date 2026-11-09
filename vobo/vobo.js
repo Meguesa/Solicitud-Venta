@@ -159,6 +159,7 @@
   btnSolicitarCorreccion?.addEventListener('click', mostrarCorreccion);
   btnCancelCorrection?.addEventListener('click', ocultarCorreccion);
   btnConfirmCorrection?.addEventListener('click', enviarCorreccion);
+  document.getElementById('btnReintentarNotificacion')?.addEventListener('click', reintentarNotificacionComercial);
 
   cargarBandeja();
 
@@ -199,6 +200,12 @@
     try {
       const data = await llamarApi({ accion: 'detalle', folio });
       renderDetalle(data);
+      if (!esCobranza) {
+        cargarEstadoNotificacionComercial(folio).catch((error) => {
+          const estado = document.getElementById('notificacionComercialEstado');
+          if (estado) estado.textContent = 'No fue posible consultar la evidencia de notificación: ' + (error.message || error);
+        });
+      }
       listPanel.hidden = true;
       detailPanel.hidden = false;
       detailPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -494,12 +501,55 @@
     const response = await fetch(API, {
       method: 'POST',
       cache: 'no-store',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(payload?.accion === 'notificacion_reintentar'
+          ? { 'X-SV-Notification-Retry': String(window.SOLICITUD_RETRY_TOKEN || '') }
+          : {})
+      },
       body: JSON.stringify(payload)
     });
     const data = await response.json().catch(() => null);
     if (!response.ok || !data?.ok) throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
     return data;
+  }
+
+  async function cargarEstadoNotificacionComercial(folio) {
+    const aviso = document.getElementById('notificacionComercialEstado');
+    const boton = document.getElementById('btnReintentarNotificacion');
+    if (!aviso || !boton) return;
+    boton.hidden = true;
+    aviso.textContent = 'Consultando el estado del correo...';
+    const data = await llamarApi({ accion: 'notificacion_estado', folio });
+    if (obtenerFolioActual() !== folio) return;
+    const nombres = {
+      ACEPTADO_POR_GRAPH: 'Aceptado por Microsoft Graph',
+      NO_ENVIADO: 'Envío rechazado',
+      SIN_CONFIRMACION: 'Sin confirmación',
+      SIN_REGISTRO: 'Sin evidencia de envío',
+      REINTENTO_EN_PROCESO: 'Reintento en revisión'
+    };
+    aviso.textContent = `${nombres[data.estado] || data.estado}: ${data.message || ''}`;
+    boton.hidden = !data.reintentoPermitido;
+    boton.disabled = false;
+  }
+
+  async function reintentarNotificacionComercial() {
+    const folio = obtenerFolioActual();
+    const boton = document.getElementById('btnReintentarNotificacion');
+    if (!folio || !boton) return;
+    if (!window.confirm(
+      `¿Reintentar el aviso a Gerencia Comercial de ${folio}?\n\nSolo procede con rechazo confirmado. La solicitud no se duplicará.`
+    )) return;
+    boton.disabled = true;
+    try {
+      const data = await llamarApi({ accion: 'notificacion_reintentar', folio });
+      mostrarMensaje(data.message || 'Solicitud de reenvío procesada.', 'ok');
+    } catch (error) {
+      mostrarMensaje('No fue posible confirmar el reenvío: ' + (error.message || error), 'error');
+    } finally {
+      await cargarEstadoNotificacionComercial(folio).catch(() => { boton.hidden = true; });
+    }
   }
 
   function mostrarMensaje(text, type = '') {

@@ -54,6 +54,7 @@ try {
 
     $principalFields = is_array($principal['fields'] ?? null) ? $principal['fields'] : [];
     validarPrincipal($principalFields, $folio, $correoUsuario);
+    svValidarIdentificacionPrincipal($principalFields);
 
     $solicitudGrupo = strtoupper(trim((string) ($principalFields['Solicitud_Grupo'] ?? '')));
     if ($solicitudGrupo === '') $solicitudGrupo = $folio;
@@ -276,7 +277,8 @@ function obtenerItemPrincipal(string $token, string $siteId, string $listId, str
     $campos = implode(',', [
         'Title', 'field_1', 'field_2', 'field_8', 'field_9', 'field_48', 'field_63',
         'Vendedor_Nombre', 'Vendedor_Correo', 'Solicitud_Grupo', 'Componente_Numero',
-        'Componente_Total', 'field_102', 'field_103'
+        'Componente_Total', 'field_102', 'field_103',
+        'field_5', 'field_6', 'field_7', 'Cliente_Tipo_ID'
     ]);
     $url = 'https://graph.microsoft.com/v1.0/sites/' . rawurlencode($siteId)
         . '/lists/' . rawurlencode($listId)
@@ -290,6 +292,20 @@ function obtenerItemPrincipal(string $token, string $siteId, string $listId, str
 }
 
 /** @param array<string,mixed> $fields */
+/** La solicitud debe tener por lo menos una identificación del cliente. */
+function svValidarIdentificacionPrincipal(array $fields): void
+{
+    $validacion = svIdentificacionClienteValida($fields);
+    if ($validacion['ok']) return;
+
+    if ($validacion['error'] === 'CLIENT_ID_TYPE_REQUIRED') {
+        svResponderError(409, 'CLIENT_ID_TYPE_REQUIRED',
+            'Selecciona el tipo de identificacion del numero capturado.');
+    }
+    svResponderError(409, 'CLIENT_IDENTIFICATION_REQUIRED',
+        'Captura al menos uno: numero de identificacion, RFC o CURP antes de enviar.');
+}
+
 function validarPrincipal(array $fields, string $folio, string $correoUsuario): void
 {
     $title = strtoupper(trim((string) ($fields['Title'] ?? '')));

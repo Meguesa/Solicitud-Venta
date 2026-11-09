@@ -108,6 +108,7 @@ try {
             'folio' => $folio,
             'itemId' => $itemId,
             'guardadoUtc' => (string) ($documento['guardadoUtc'] ?? ''),
+            'revision' => (string) ($registro['eTag'] ?? $registro['@odata.etag'] ?? ''),
             'estado' => $estado,
             'recuperacion' => 'ESTADO_BORRADOR',
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -125,6 +126,7 @@ try {
         'folio' => $folio,
         'itemId' => $itemId,
         'guardadoUtc' => '',
+        'revision' => (string) ($registro['eTag'] ?? $registro['@odata.etag'] ?? ''),
         'estado' => $estado,
         'recuperacion' => 'SHAREPOINT_FALLBACK',
         'warning' => 'El borrador fue reconstruido desde SharePoint porque no habia un estado reanudable completo. Los campos que nunca fueron persistidos deben completarse nuevamente.',
@@ -169,7 +171,7 @@ function cargarPrincipal(string $token, string $siteId, string $listId, string $
             $url = 'https://graph.microsoft.com/v1.0/sites/' . rawurlencode($siteId)
                 . '/lists/' . rawurlencode($listId)
                 . '/items/' . rawurlencode($itemId)
-                . '?$select=id&$expand=fields';
+                . '?$select=id,eTag&$expand=fields';
             $item = svCurlJson($url, 'GET', [
                 'Authorization: Bearer ' . $token,
                 'Accept: application/json',
@@ -183,7 +185,7 @@ function cargarPrincipal(string $token, string $siteId, string $listId, string $
 
     $url = 'https://graph.microsoft.com/v1.0/sites/' . rawurlencode($siteId)
         . '/lists/' . rawurlencode($listId)
-        . '/items?$select=id,lastModifiedDateTime&$expand=fields&$top=200';
+        . '/items?$select=id,eTag,lastModifiedDateTime&$expand=fields&$top=200';
 
     $candidato = null;
     while ($url !== '') {

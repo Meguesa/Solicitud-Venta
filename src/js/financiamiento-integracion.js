@@ -280,7 +280,10 @@
       let folio = folioActual();
       if (!folio) {
         if (typeof window.guardarBorrador !== 'function') throw new Error('La función de guardado del borrador no está disponible.');
-        await window.guardarBorrador();
+        const guardado = await window.guardarBorrador();
+        if (guardado !== true) {
+          throw new Error('El borrador no pudo guardarse completamente. Corrige el error antes de abrir Financiamiento.');
+        }
         folio = await esperarFolioGuardado();
       }
       if (!folio) {
@@ -349,7 +352,10 @@
       setValor('financiamientoIntegrado', 'CALCULADO');
 
       if (typeof window.guardarBorrador !== 'function') throw new Error('No fue posible guardar los datos financieros en el borrador.');
-      await window.guardarBorrador();
+      const guardadoFinal = await window.guardarBorrador();
+      if (guardadoFinal !== true || window.__solicitudComponentesUltimaSincronizacionOk !== true) {
+        throw new Error('El PDF fue recibido, pero no se guardaron completamente las condiciones financieras del borrador. Revisa el error y reintenta.');
+      }
       restaurarValoresExactos();
       bloquearCamposFinanciamiento();
 

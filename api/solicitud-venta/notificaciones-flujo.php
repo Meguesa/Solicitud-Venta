@@ -21,8 +21,11 @@ function svNotificarEntradaVoboComercial(
     array $backendConfig,
     string $folio,
     array $principalFields,
-    int $componentes
+    int $componentes,
+    int $intento = 1
 ): array {
+    $intentoCorreo = false;
+    try {
     $grupo = 'Solicitud Venta - Notificaciones Comercial';
 
     $groupConfig = svSharePointGruposConfig();
@@ -100,6 +103,7 @@ function svNotificarEntradaVoboComercial(
         'reviewUrl' => $reviewUrl,
     ]);
 
+    $intentoCorreo = true;
     svEnviarCorreoGraph(
         $graphToken,
         $mailConfig['sender'],
@@ -118,7 +122,9 @@ function svNotificarEntradaVoboComercial(
             $folio,
             '_NOTIFICACION_COMERCIAL.json',
             [
-                'version' => 1,
+                'version' => 2,
+                'estado' => 'ACEPTADO_POR_GRAPH',
+                'intentos' => max(1, $intento),
                 'folio' => $folio,
                 'etapa' => 'VOBO_COMERCIAL',
                 'grupo' => $grupo,
@@ -137,6 +143,30 @@ function svNotificarEntradaVoboComercial(
         'destinatarios' => $destinatarios,
         'grupo' => $grupo,
     ];
+    } catch (Throwable $error) {
+        // Un timeout puede producirse DESPUES de aceptar el correo; nunca
+        // habilitar reintento automático ante un resultado incierto.
+        $estado = svEstadoResultadoEnvio($intentoCorreo, $error->getMessage());
+        try {
+            svGuardarEvidenciaNotificacion(
+                $graphToken, $backendConfig['siteId'], $folio,
+                '_NOTIFICACION_COMERCIAL.json',
+                [
+                    'version' => 2,
+                    'folio' => $folio,
+                    'etapa' => 'VOBO_COMERCIAL',
+                    'estado' => $estado,
+                    'intentos' => max(1, $intento),
+                    'actualizadoUtc' => gmdate('c'),
+                    'ultimoError' => substr($error->getMessage(), 0, 300),
+                ]
+            );
+        } catch (Throwable $auditError) {
+            error_log('Solicitud Venta: no se pudo registrar falla de notificacion '
+                . $folio . ': ' . $auditError->getMessage());
+        }
+        throw $error;
+    }
 }
 
 /** @param array<string,mixed> $fields */
@@ -214,7 +244,8 @@ function svGuardarEvidenciaNotificacion(
     string $siteId,
     string $folio,
     string $archivo,
-    array $data
+    array $data,
+    string $ifMatch = ''
 ): void {
     $driveId = svObtenerDriveExpedientesNotificaciones($graphToken, $siteId);
     $body = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
@@ -222,9 +253,86 @@ function svGuardarEvidenciaNotificacion(
 
     $path = rawurlencode($folio) . '/' . rawurlencode($archivo);
     $url = 'https://graph.microsoft.com/v1.0/drives/' . rawurlencode($driveId) . '/root:/' . $path . ':/content';
-    svCurlJson($url, 'PUT', [
+    $headers = [
         'Authorization: Bearer ' . $graphToken,
         'Accept: application/json',
         'Content-Type: application/json; charset=utf-8',
-    ], $body);
+    ];
+    if ($ifMatch !== '') $headers[] = 'If-Match: ' . $ifMatch;
+    svCurlJson($url, 'PUT', $headers, $body);
+}
+
+/** @return array{datos:array<string,mixed>,etag:string} */
+function svLeerEvidenciaNotificacion(string $token,string $siteId,string $folio): array
+{
+    $driveId = svObtenerDriveExpedientesNotificaciones($token, $siteId);
+    $base = 'https://graph.microsoft.com/v1.0/drives/' . rawurlencode($driveId)
+        . '/root:/' . rawurlencode($folio) . '/' . rawurlencode('_NOTIFICACION_COMERCIAL.json');
+    // Los driveItems por ruta requieren ':' final en consulta de metadatos.
+    $metadata = svCurlJson($base . ':?$select=id,eTag', 'GET', [
+        'Authorization: Bearer ' . $token, 'Accept: application/json',
+    ]);
+    $etag = trim((string) ($metadata['eTag'] ?? $metadata['@odata.etag'] ?? ''));
+    if ($etag === '') throw new RuntimeException('No fue posible consultar la version de evidencia del correo.');
+    $datos = svCurlJson($base . ':/content', 'GET', [
+        'Authorization: Bearer ' . $token, 'Accept: application/json',
+    ]);
+    return ['datos' => $datos, 'etag' => $etag];
+}
+
+/** Clasificacion conservadora: timeout/5xx no aseguran que el correo no salio. */
+function svEstadoResultadoEnvio(bool $intentoCorreo, string $mensaje): string
+{
+    if (!$intentoCorreo) return 'NO_ENVIADO';
+    if (preg_match('/Microsoft Graph respondio HTTP (400|401|403|404|429)\\b/', $mensaje) === 1) {
+        return 'NO_ENVIADO';
+    }
+    return 'SIN_CONFIRMACION';
+}
+
+/** @return array{estado:string,intentos:int,reintentoPermitido:bool} */
+function svPermisoReintentoNotificacion(array $evidencia): array
+{
+    $estado = strtoupper(trim((string) ($evidencia['estado']
+        ?? (!empty($evidencia['enviadoUtc']) ? 'ACEPTADO_POR_GRAPH' : 'SIN_CONFIRMACION'))));
+    $intentos = max(1, (int) ($evidencia['intentos'] ?? 1));
+    return [
+        'estado' => $estado,
+        'intentos' => $intentos,
+        'reintentoPermitido' => $estado === 'NO_ENVIADO' && $intentos < 3,
+    ];
+}
+
+/**
+ * Reserva atomica del intento. El nombre fijo con conflictBehavior=fail
+ * impide que dos sesiones reenvien el mismo folio/intento simultaneamente.
+ * La carpeta pequeña se conserva como evidencia de operación.
+ */
+function svReservarReintentoComercial(string $token, string $siteId, string $folio, int $intento): void
+{
+    if ($intento < 2 || $intento > 3) {
+        throw new RuntimeException('El intento de notificacion solicitado esta fuera del limite.');
+    }
+    $driveId = svObtenerDriveExpedientesNotificaciones($token, $siteId);
+    $folderUrl = 'https://graph.microsoft.com/v1.0/drives/' . rawurlencode($driveId)
+        . '/root:/' . rawurlencode($folio) . ':';
+    $folder = svCurlJson($folderUrl, 'GET', [
+        'Authorization: Bearer ' . $token,
+        'Accept: application/json',
+    ]);
+    $folderId = trim((string) ($folder['id'] ?? ''));
+    if ($folderId === '') throw new RuntimeException('No fue posible consultar la carpeta de evidencias.');
+
+    $payload = json_encode([
+        'name' => '_REINTENTO_CORREO_COMERCIAL_' . $intento,
+        'folder' => new stdClass(),
+        '@microsoft.graph.conflictBehavior' => 'fail',
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if (!is_string($payload)) throw new RuntimeException('No fue posible serializar la reserva del intento.');
+    svCurlJson('https://graph.microsoft.com/v1.0/drives/' . rawurlencode($driveId)
+        . '/items/' . rawurlencode($folderId) . '/children', 'POST', [
+            'Authorization: Bearer ' . $token,
+            'Accept: application/json',
+            'Content-Type: application/json',
+        ], $payload);
 }
