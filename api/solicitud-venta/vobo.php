@@ -180,6 +180,14 @@ if (in_array($accion, ['notificacion_estado', 'notificacion_reintentar'], true))
         exit;
     }
 
+    // La accion tiene efectos externos: proteger el POST con un token
+    // específico de la sesión y un encabezado personalizado.
+    $expectedToken = (string) ($_SESSION['sv_notification_retry_csrf'] ?? '');
+    $providedToken = trim((string) ($_SERVER['HTTP_X_SV_NOTIFICATION_RETRY'] ?? ''));
+    if ($expectedToken === '' || $providedToken === '' || !hash_equals($expectedToken, $providedToken)) {
+        voboError(403, 'NOTIFICATION_CSRF_INVALID', 'La sesión de seguridad del reenvío no está disponible. Reabre la bandeja.');
+    }
+
     // No es posible garantizar exactamente-una-vez al enviar correos.
     // Solo se reintenta si Graph rechazó la operación de manera explícita.
     if (!$puedeReintentar) {
