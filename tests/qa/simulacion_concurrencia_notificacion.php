@@ -37,8 +37,8 @@ foreach ($cases as [$evidence, $expected]) {
 }
 
 $notificaciones = file_get_contents(__DIR__ . '/../../api/solicitud-venta/notificaciones-flujo.php');
-qaAssert(str_contains($notificaciones, "':?$select=id,eTag'"), 'URL Graph metadata con dos puntos final');
-qaAssert(str_contains($notificaciones, "'If-Match: ' . $ifMatch"), 'Control condicional de evidencia');
+qaAssert(str_contains($notificaciones, "':?\$select=id,eTag'"), 'URL Graph metadata con dos puntos final');
+qaAssert(str_contains($notificaciones, "'If-Match: ' . \$ifMatch"), 'Control condicional de evidencia');
 $vobo = file_get_contents(__DIR__ . '/../../api/solicitud-venta/vobo.php');
 qaAssert(str_contains($vobo, "NOTIFICATION_CSRF_INVALID"), 'Reintento exige protección de sesión');
 
