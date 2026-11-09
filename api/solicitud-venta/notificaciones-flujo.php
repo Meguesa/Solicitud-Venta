@@ -146,11 +146,7 @@ function svNotificarEntradaVoboComercial(
     } catch (Throwable $error) {
         // Un timeout puede producirse DESPUES de aceptar el correo; nunca
         // habilitar reintento automático ante un resultado incierto.
-        $rechazoConfirmado = !$intentoCorreo || preg_match(
-            '/Microsoft Graph respondio HTTP (400|401|403|404)\\b/',
-            $error->getMessage()
-        ) === 1;
-        $estado = $rechazoConfirmado ? 'NO_ENVIADO' : 'SIN_CONFIRMACION';
+        $estado = svEstadoResultadoEnvio($intentoCorreo, $error->getMessage());
         try {
             svGuardarEvidenciaNotificacion(
                 $graphToken, $backendConfig['siteId'], $folio,
@@ -272,7 +268,8 @@ function svLeerEvidenciaNotificacion(string $token,string $siteId,string $folio)
     $driveId = svObtenerDriveExpedientesNotificaciones($token, $siteId);
     $base = 'https://graph.microsoft.com/v1.0/drives/' . rawurlencode($driveId)
         . '/root:/' . rawurlencode($folio) . '/' . rawurlencode('_NOTIFICACION_COMERCIAL.json');
-    $metadata = svCurlJson($base . '?$select=id,eTag', 'GET', [
+    // Los driveItems por ruta requieren ':' final en consulta de metadatos.
+    $metadata = svCurlJson($base . ':?$select=id,eTag', 'GET', [
         'Authorization: Bearer ' . $token, 'Accept: application/json',
     ]);
     $etag = trim((string) ($metadata['eTag'] ?? $metadata['@odata.etag'] ?? ''));
@@ -281,4 +278,27 @@ function svLeerEvidenciaNotificacion(string $token,string $siteId,string $folio)
         'Authorization: Bearer ' . $token, 'Accept: application/json',
     ]);
     return ['datos' => $datos, 'etag' => $etag];
+}
+
+/** Clasificacion conservadora: timeout/5xx no aseguran que el correo no salio. */
+function svEstadoResultadoEnvio(bool $intentoCorreo, string $mensaje): string
+{
+    if (!$intentoCorreo) return 'NO_ENVIADO';
+    if (preg_match('/Microsoft Graph respondio HTTP (400|401|403|404|429)\\b/', $mensaje) === 1) {
+        return 'NO_ENVIADO';
+    }
+    return 'SIN_CONFIRMACION';
+}
+
+/** @return array{estado:string,intentos:int,reintentoPermitido:bool} */
+function svPermisoReintentoNotificacion(array $evidencia): array
+{
+    $estado = strtoupper(trim((string) ($evidencia['estado']
+        ?? (!empty($evidencia['enviadoUtc']) ? 'ACEPTADO_POR_GRAPH' : 'SIN_CONFIRMACION'))));
+    $intentos = max(1, (int) ($evidencia['intentos'] ?? 1));
+    return [
+        'estado' => $estado,
+        'intentos' => $intentos,
+        'reintentoPermitido' => $estado === 'NO_ENVIADO' && $intentos < 3,
+    ];
 }
