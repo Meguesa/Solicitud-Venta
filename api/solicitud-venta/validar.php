@@ -295,18 +295,15 @@ function obtenerItemPrincipal(string $token, string $siteId, string $listId, str
 /** La solicitud debe tener por lo menos una identificación del cliente. */
 function svValidarIdentificacionPrincipal(array $fields): void
 {
-    $id = trim((string) ($fields['field_5'] ?? ''));
-    $rfc = trim((string) ($fields['field_6'] ?? ''));
-    $curp = trim((string) ($fields['field_7'] ?? ''));
-    $tipo = trim((string) ($fields['Cliente_Tipo_ID'] ?? ''));
-    if ($id === '' && $rfc === '' && $curp === '') {
-        svResponderError(409, 'CLIENT_IDENTIFICATION_REQUIRED',
-            'Captura al menos uno: numero de identificacion, RFC o CURP antes de enviar.');
-    }
-    if ($id !== '' && $tipo === '') {
+    $validacion = svIdentificacionClienteValida($fields);
+    if ($validacion['ok']) return;
+
+    if ($validacion['error'] === 'CLIENT_ID_TYPE_REQUIRED') {
         svResponderError(409, 'CLIENT_ID_TYPE_REQUIRED',
             'Selecciona el tipo de identificacion del numero capturado.');
     }
+    svResponderError(409, 'CLIENT_IDENTIFICATION_REQUIRED',
+        'Captura al menos uno: numero de identificacion, RFC o CURP antes de enviar.');
 }
 
 function validarPrincipal(array $fields, string $folio, string $correoUsuario): void
