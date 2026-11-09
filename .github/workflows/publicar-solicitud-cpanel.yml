@@ -115,6 +115,13 @@ jobs:
           console.log('6 reglas de identificacion frontend aprobadas');
           JS
 
+      - name: Simular dos sesiones SharePoint y reintentos de notificacion
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/qa/simulacion_concurrencia_notificacion.php
+          node tests/qa/guardado_doble.js
+
       - name: Construir paquete (sin FTP ni correos)
         run: python3 tools/build_solicitud_package.py
 
