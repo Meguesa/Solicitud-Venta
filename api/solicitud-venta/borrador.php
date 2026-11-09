@@ -135,10 +135,19 @@ if (($payload['accion'] ?? '') === 'guardar_borrador') {
     }
 
     // Informacion del cliente.
-    agregarTexto($fields, 'Cliente_Tipo_ID', $payload, 'clienteTipoId');
-    agregarTexto($fields, 'field_5', $payload, 'clienteNumeroId');
-    agregarTexto($fields, 'field_6', $payload, 'clienteRfc');
-    agregarTexto($fields, 'field_7', $payload, 'clienteCurp');
+    // Respetar también los campos vacíos cuando el usuario corrige su captura.
+    // Antes un RFC/ID eliminado continuaba persistido en SharePoint porque
+    // agregarTexto omitía las cadenas vacías.
+    foreach ([
+        'Cliente_Tipo_ID' => 'clienteTipoId',
+        'field_5' => 'clienteNumeroId',
+        'field_6' => 'clienteRfc',
+        'field_7' => 'clienteCurp',
+    ] as $columna => $clave) {
+        if (array_key_exists($clave, $payload)) {
+            $fields[$columna] = trim((string) ($payload[$clave] ?? ''));
+        }
+    }
     agregarTexto($fields, 'field_8', $payload, 'clienteNombres');
 
     $apellidos = trim(textoPayload($payload, 'clienteApellidoPaterno') . ' ' . textoPayload($payload, 'clienteApellidoMaterno'));
