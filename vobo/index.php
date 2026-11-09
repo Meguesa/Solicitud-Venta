@@ -24,6 +24,13 @@ if ($etapa === 'cobranza') svSolicitudRequireCobranzaVobo();
 else svSolicitudRequireVobo();
 
 $user = svSolicitudUsuario();
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    http_response_code(401);
+    exit('La sesión de seguridad no está activa.');
+}
+if (empty($_SESSION['sv_notification_retry_csrf']) || !is_string($_SESSION['sv_notification_retry_csrf'])) {
+    $_SESSION['sv_notification_retry_csrf'] = bin2hex(random_bytes(24));
+}
 $name = htmlspecialchars((string) ($user['name'] ?? 'Usuario'), ENT_QUOTES, 'UTF-8');
 $email = htmlspecialchars((string) ($user['email'] ?? ''), ENT_QUOTES, 'UTF-8');
 $isCobranza = $etapa === 'cobranza';
@@ -131,6 +138,7 @@ $approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
 
   <script>
     window.SOLICITUD_VOBO_ETAPA = <?= json_encode($etapa, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+    window.SOLICITUD_RETRY_TOKEN = <?= json_encode((string) $_SESSION['sv_notification_retry_csrf']) ?>;
     (() => {
       const nativeFetch = window.fetch.bind(window);
       window.fetch = (input, init) => {
