@@ -108,6 +108,7 @@ try {
             'folio' => $folio,
             'itemId' => $itemId,
             'guardadoUtc' => (string) ($documento['guardadoUtc'] ?? ''),
+            'revision' => (string) ($registro['eTag'] ?? $registro['@odata.etag'] ?? ''),
             'estado' => $estado,
             'recuperacion' => 'ESTADO_BORRADOR',
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -125,6 +126,7 @@ try {
         'folio' => $folio,
         'itemId' => $itemId,
         'guardadoUtc' => '',
+        'revision' => (string) ($registro['eTag'] ?? $registro['@odata.etag'] ?? ''),
         'estado' => $estado,
         'recuperacion' => 'SHAREPOINT_FALLBACK',
         'warning' => 'El borrador fue reconstruido desde SharePoint porque no habia un estado reanudable completo. Los campos que nunca fueron persistidos deben completarse nuevamente.',
