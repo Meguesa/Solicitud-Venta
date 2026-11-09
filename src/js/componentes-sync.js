@@ -81,7 +81,9 @@
     guardarOriginal = window.guardarBorrador;
 
     window.guardarBorrador = async function (...args) {
-      await guardarOriginal.apply(this, args);
+      window.__solicitudComponentesUltimaSincronizacionOk = false;
+      const guardadoBase = await guardarOriginal.apply(this, args);
+      if (guardadoBase !== true) return false;
 
       const folio = obtenerFolioActual();
       const mensaje = document.getElementById('formMessage');
