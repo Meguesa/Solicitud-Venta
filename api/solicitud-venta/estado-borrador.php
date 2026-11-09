@@ -171,7 +171,7 @@ function cargarPrincipal(string $token, string $siteId, string $listId, string $
             $url = 'https://graph.microsoft.com/v1.0/sites/' . rawurlencode($siteId)
                 . '/lists/' . rawurlencode($listId)
                 . '/items/' . rawurlencode($itemId)
-                . '?$select=id&$expand=fields';
+                . '?$select=id,eTag&$expand=fields';
             $item = svCurlJson($url, 'GET', [
                 'Authorization: Bearer ' . $token,
                 'Accept: application/json',
@@ -185,7 +185,7 @@ function cargarPrincipal(string $token, string $siteId, string $listId, string $
 
     $url = 'https://graph.microsoft.com/v1.0/sites/' . rawurlencode($siteId)
         . '/lists/' . rawurlencode($listId)
-        . '/items?$select=id,lastModifiedDateTime&$expand=fields&$top=200';
+        . '/items?$select=id,eTag,lastModifiedDateTime&$expand=fields&$top=200';
 
     $candidato = null;
     while ($url !== '') {
