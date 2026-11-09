@@ -84,6 +84,14 @@ jobs:
           set -euo pipefail
           python3 tools/build_solicitud_package.py
 
+      - name: Validar sintaxis JavaScript de la herramienta
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in src/js/app.js src/js/componentes-sync.js src/js/persistencia.js src/js/sucursales-componentes.js src/js/extras.js; do
+            node --check "$script"
+          done
+
       - name: Preparar PHP 8.2
         uses: shivammathur/setup-php@v2
         with:

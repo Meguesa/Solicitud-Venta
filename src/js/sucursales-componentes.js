@@ -161,15 +161,9 @@
     const guardarAnterior = window.guardarBorrador;
     window.guardarBorrador = async function (...args) {
       const resultado = await guardarAnterior.apply(this, args);
+      if (resultado !== true) return resultado;
       const folio = obtenerFolioActual();
-      if (!folio) return resultado;
-
-      const mensaje = document.getElementById('formMessage');
-      const guardadoOk = Boolean(
-        mensaje?.classList.contains('ok') ||
-        String(mensaje?.textContent || '').includes('guardado correctamente')
-      );
-      if (!guardadoOk) return resultado;
+      if (!folio) return false;
 
       try {
         await guardarSucursales(folio);

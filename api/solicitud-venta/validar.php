@@ -77,12 +77,54 @@ try {
     }
 
     $totalEsperado = (int) ($principalFields['Componente_Total'] ?? 0);
+    // Graph puede tardar brevemente en reflejar los componentes recién
+    // guardados. Reconsultar antes de informar una inconsistencia, pero NUNCA
+    // omitir la validación ni autorizar con datos incompletos.
     if ($totalEsperado > 0 && count($items) !== $totalEsperado) {
+        for ($reintento = 0; $reintento < 3 && count($items) !== $totalEsperado; $reintento++) {
+            usleep(350000);
+            $items = obtenerItemsGrupo(
+                $graphToken, $config['siteId'], $config['listId'], $solicitudGrupo, $principal
+            );
+        }
+    }
+    if ($totalEsperado < 1 || count($items) !== $totalEsperado) {
+        error_log(
+            'Solicitud Venta COMPONENT_COUNT_MISMATCH folio=' . $folio
+            . ' esperado=' . $totalEsperado . ' encontrado=' . count($items)
+        );
         svResponderError(
             409,
             'COMPONENT_COUNT_MISMATCH',
-            'La cantidad de componentes en SharePoint no coincide con la solicitud. Vuelve a guardar el borrador antes de validar.'
+            'La solicitud contiene ' . count($items) . ' componente(s) en SharePoint, pero espera '
+                . $totalEsperado . '. Guarda todos los componentes y vuelve a validar.'
         );
+    }
+
+    $indices = [];
+    $ids = [];
+    foreach ($items as $item) {
+        $fields = is_array($item['fields'] ?? null) ? $item['fields'] : [];
+        $numero = (int) ($fields['Componente_Numero'] ?? 0);
+        $id = (string) ($item['id'] ?? '');
+        if ($numero < 1 || $numero > $totalEsperado || $id === ''
+            || isset($indices[$numero]) || isset($ids[$id])) {
+            svResponderError(
+                409,
+                'COMPONENT_GROUP_INVALID',
+                'Hay componentes duplicados o sin numeración válida. Guarda el borrador antes de validar.'
+            );
+        }
+        $indices[$numero] = true;
+        $ids[$id] = true;
+        if ($numero === 1 && $id !== $itemIdPrincipal) {
+            svResponderError(409, 'COMPONENT_PRINCIPAL_INVALID', 'El componente principal no coincide con la solicitud.');
+        }
+    }
+    for ($numero = 1; $numero <= $totalEsperado; $numero++) {
+        if (!isset($indices[$numero])) {
+            svResponderError(409, 'COMPONENT_MISSING', 'Falta el componente ' . $numero . ' en SharePoint.');
+        }
     }
 
     foreach ($items as $item) {

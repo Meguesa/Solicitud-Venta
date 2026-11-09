@@ -101,9 +101,25 @@ try {
     }
 
     $total = count($componentes);
-    actualizarCampos($graphToken, $config['siteId'], $config['listId'], $itemIdPrincipal,
-        construirCamposComponente($componentes[0], $folio, $total, true, $distribucionTipo, $promocionNombre)
-    );
+    // Validar todos los componentes antes de realizar cualquier escritura.
+    // El total del principal se confirma al finalizar (no antes de crear
+    // los secundarios), para evitar inconsistencias en guardados parciales.
+    $camposPorNumero = [];
+    foreach ($componentes as $componente) {
+        $numero = (int) $componente['numero'];
+        $camposPorNumero[$numero] = construirCamposComponente(
+            $componente, $folio, $total, $numero === 1, $distribucionTipo, $promocionNombre
+        );
+    }
+
+    $precioVenta = round((float) ($principalFields['field_63'] ?? 0), 2);
+    $importeAsignado = round(array_sum(array_column($componentes, 'montoComponente')), 2);
+    if (abs($precioVenta - $importeAsignado) > 0.01) {
+        svResponderError(
+            409, 'DISTRIBUTION_MISMATCH',
+            'Los montos asignados no coinciden con el precio total guardado. Revisa y vuelve a guardar la solicitud.'
+        );
+    }
 
     $registros = [[
         'itemId' => $itemIdPrincipal,
@@ -118,7 +134,7 @@ try {
         $title = $folio . '-' . str_pad((string) $numero, 2, '0', STR_PAD_LEFT);
         $campos = array_merge(
             $camposComunes,
-            construirCamposComponente($componentes[$index], $folio, $total, false, $distribucionTipo, $promocionNombre),
+            $camposPorNumero[$numero],
             ['Title' => $title]
         );
 
@@ -156,6 +172,40 @@ try {
         $fields = is_array($registro['fields'] ?? null) ? $registro['fields'] : [];
         verificarSecundario($fields, $folio, $correoUsuario);
         eliminarItem($graphToken, $config['siteId'], $config['listId'], $itemId);
+    }
+
+    // Solo declarar el total definitivo cuando los registros secundarios
+    // ya fueron creados/actualizados y los sobrantes fueron eliminados.
+    actualizarCampos(
+        $graphToken, $config['siteId'], $config['listId'], $itemIdPrincipal,
+        $camposPorNumero[1]
+    );
+
+    // Verificación posterior con relectura de SharePoint. Un retraso breve
+    // de propagación no debe producir un falso error de conteo.
+    $verificado = false;
+    for ($intento = 0; $intento < 3; $intento++) {
+        if ($intento > 0) usleep(350000);
+        $guardados = obtenerItemsGrupo($graphToken, $config['siteId'], $config['listId'], $folio);
+        $numeros = [];
+        $identificadores = [];
+        foreach ($guardados as $registro) {
+            $fields = is_array($registro['fields'] ?? null) ? $registro['fields'] : [];
+            $numero = (int) ($fields['Componente_Numero'] ?? 0);
+            $id = (string) ($registro['id'] ?? '');
+            if ($numero < 1 || $numero > $total || $id === '') continue;
+            $numeros[$numero] = ($numeros[$numero] ?? 0) + 1;
+            $identificadores[$numero] = $id;
+        }
+        $verificado = count($guardados) === $total;
+        for ($numero = 1; $numero <= $total && $verificado; $numero++) {
+            $verificado = ($numeros[$numero] ?? 0) === 1
+                && ($numero !== 1 || ($identificadores[1] ?? '') === $itemIdPrincipal);
+        }
+        if ($verificado) break;
+    }
+    if (!$verificado) {
+        throw new RuntimeException('SharePoint no confirmó todos los componentes. Guarda de nuevo antes de enviar a Vo.Bo.');
     }
 } catch (Throwable $error) {
     error_log('Solicitud Venta componentes: ' . $error->getMessage());
@@ -197,6 +247,7 @@ function claveServicio(string $servicioTipo, string $ataud, string $numero, stri
 {
     $servicios = [
         'VELACION E INHUMACION' => 'VI',
+        'VELACION E INHUMACION (CON OPCION A CREMACION)' => 'VI',
         'VELACION Y CREMACION' => 'VC',
         'CREMACION DIRECTA' => 'CD',
         'INHUMACION DIRECTA' => 'ID',
@@ -368,40 +419,31 @@ function obtenerColumnas(string $token, string $siteId, string $listId): array
 /** @return array<int,array<string,mixed>> */
 function obtenerItemsGrupo(string $token, string $siteId, string $listId, string $folio): array
 {
-    $base = 'https://graph.microsoft.com/v1.0/sites/' . rawurlencode($siteId) . '/lists/' . rawurlencode($listId) . '/items';
-    $query = http_build_query([
-        '$expand' => 'fields($select=Title,field_1,Vendedor_Correo,Solicitud_Grupo,Componente_Numero)',
-        '$filter' => "fields/Solicitud_Grupo eq '" . str_replace("'", "''", $folio) . "'",
-        '$top' => 100,
-    ], '', '&', PHP_QUERY_RFC3986);
+    // Consultar todas las páginas de manera determinista. Evita utilizar el
+    // filtro de una columna no indexada que podía omitir componentes o fallar.
+    $base = 'https://graph.microsoft.com/v1.0/sites/' . rawurlencode($siteId)
+        . '/lists/' . rawurlencode($listId) . '/items';
+    $url = $base . '?$expand=fields($select=Title,field_1,Vendedor_Correo,Solicitud_Grupo,Componente_Numero,Componente_Total)&$top=200';
+    $items = [];
+    $paginas = 0;
+    $folio = strtoupper(trim($folio));
 
-    try {
-        $resultado = svCurlJson($base . '?' . $query, 'GET', [
+    while ($url !== '') {
+        if (++$paginas > 100) {
+            throw new RuntimeException('La consulta de componentes superó el límite de páginas; no se realizará una sincronización parcial.');
+        }
+        $resultado = svCurlJson($url, 'GET', [
             'Authorization: Bearer ' . $token,
             'Accept: application/json',
-            'Prefer: HonorNonIndexedQueriesWarningMayFailRandomly',
         ]);
-        return is_array($resultado['value'] ?? null) ? $resultado['value'] : [];
-    } catch (Throwable $error) {
-        error_log('Solicitud Venta componentes filtro por grupo: ' . $error->getMessage());
-    }
-
-    $items = [];
-    $query = http_build_query([
-        '$expand' => 'fields($select=Title,field_1,Vendedor_Correo,Solicitud_Grupo,Componente_Numero)',
-        '$top' => 200,
-    ], '', '&', PHP_QUERY_RFC3986);
-    $url = $base . '?' . $query;
-    $paginas = 0;
-    while ($url !== '' && $paginas < 50) {
-        $resultado = svCurlJson($url, 'GET', ['Authorization: Bearer ' . $token, 'Accept: application/json']);
         foreach (($resultado['value'] ?? []) as $registro) {
             if (!is_array($registro)) continue;
             $fields = is_array($registro['fields'] ?? null) ? $registro['fields'] : [];
-            if (strtoupper(trim((string) ($fields['Solicitud_Grupo'] ?? ''))) === $folio) $items[] = $registro;
+            if (strtoupper(trim((string) ($fields['Solicitud_Grupo'] ?? ''))) === $folio) {
+                $items[] = $registro;
+            }
         }
         $url = trim((string) ($resultado['@odata.nextLink'] ?? ''));
-        $paginas++;
     }
     return $items;
 }

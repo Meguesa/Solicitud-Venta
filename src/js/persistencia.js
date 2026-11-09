@@ -49,7 +49,7 @@
 
     window.guardarBorrador = async function (...args) {
       const resultado = await guardarAnterior.apply(this, args);
-      if (restaurando) return resultado;
+      if (resultado !== true || restaurando) return resultado;
 
       const folio = obtenerFolioActual();
       const itemId = obtenerItemIdActual();

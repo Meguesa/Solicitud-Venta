@@ -105,6 +105,7 @@ function construirClaveServicio(string $servicioTipo, string $ataud, string $num
 {
     $servicios = [
         'VELACION E INHUMACION' => 'VI',
+        'VELACION E INHUMACION (CON OPCION A CREMACION)' => 'VI',
         'VELACION Y CREMACION' => 'VC',
         'CREMACION DIRECTA' => 'CD',
         'INHUMACION DIRECTA' => 'ID',
