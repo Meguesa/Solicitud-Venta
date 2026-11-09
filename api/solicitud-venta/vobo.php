@@ -196,6 +196,11 @@ if (in_array($accion, ['notificacion_estado', 'notificacion_reintentar'], true))
     }
 
     try {
+        // Reservar una sola vez el folio y número de intento. Si otro proceso
+        // ya lo reservó, Graph rechaza la creación y NO enviamos el correo.
+        svReservarReintentoComercial(
+            $graphToken, $config['siteId'], $folio, $intentosNotificacion + 1
+        );
         svGuardarEvidenciaNotificacion(
             $graphToken, $config['siteId'], $folio, '_NOTIFICACION_COMERCIAL.json',
             [
