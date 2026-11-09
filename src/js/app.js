@@ -595,7 +595,13 @@ function construirPayloadBorrador() {
   };
 }
 
+let guardadoBorradorEnCurso = false;
 async function guardarBorrador() {
+  // Protege contra llamadas simultáneas desde firmas, calculadora y botones.
+  if (guardadoBorradorEnCurso) {
+    mostrarMensaje("Ya se está guardando esta solicitud. Comprueba el resultado antes de reintentar.", "error");
+    return false;
+  }
   const saveButton = document.getElementById("btnSaveDraft");
   const payload = construirPayloadBorrador();
 
@@ -605,6 +611,7 @@ async function guardarBorrador() {
   }
 
   try {
+    guardadoBorradorEnCurso = true;
     saveButton.disabled = true;
     mostrarMensaje(borradorActual.itemId ? "Actualizando borrador en SharePoint..." : "Guardando borrador en SharePoint...");
     const token = await window.solicitudVentaAuth.getBackendAccessToken();
@@ -630,6 +637,7 @@ async function guardarBorrador() {
     mostrarMensaje(`No fue posible guardar el borrador: ${error.message || error}`, "error");
     return false;
   } finally {
+    guardadoBorradorEnCurso = false;
     saveButton.disabled = false;
   }
 }
