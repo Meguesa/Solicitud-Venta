@@ -170,7 +170,7 @@
         // La sincronización de componentes y sucursales puede modificar
         // el item principal después del guardado inicial. Refrescar ETag.
         if (typeof window.solicitudVentaRefrescarRevision === 'function') {
-          await window.solicitudVentaRefrescarRevision(folio, obtenerItemIdActual());
+          await window.solicitudVentaRefrescarRevision(folio, String(borradorActual?.itemId || ''));
         }
         return resultado;
       } catch (error) {
