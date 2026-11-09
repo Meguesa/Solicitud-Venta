@@ -97,7 +97,10 @@
       throw new Error("No fue posible localizar el guardado del borrador.");
     }
     mostrarMensaje("Guardando los cambios de la corrección...");
-    await window.guardarBorrador();
+    const guardado = await window.guardarBorrador();
+    if (guardado !== true) {
+      throw new Error('La corrección no se guardó completamente. Revisa el mensaje del formulario.');
+    }
   }
 
   async function enviarVoBo(folio) {
