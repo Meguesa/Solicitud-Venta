@@ -1,6 +1,11 @@
 name: Publicar Solicitud de Venta independiente en cPanel
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/publicar-solicitud-cpanel.yml'
   workflow_dispatch:
     inputs:
       alcance:
@@ -130,8 +135,9 @@ jobs:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          SOLICITUD_DEPLOY_SCOPE: ${{ inputs.alcance }}
+          SOLICITUD_DEPLOY_SCOPE: ${{ inputs.alcance || 'completo' }}
         run: |
           set -euo pipefail
           cd _deploy
           bash ../tools/deploy_solicitud_ftps.sh
+# publicar fix consistencia componentes y VoBo 20261109
