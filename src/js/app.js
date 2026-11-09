@@ -52,6 +52,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   precioTotal.addEventListener("input", recalcularImportes);
   enganche.addEventListener("input", recalcularImportes);
   mensualidades.addEventListener("input", recalcularImportes);
+  ["clienteTipoId", "clienteNumeroId", "clienteRfc", "clienteCurp"].forEach((id) => {
+    const campo = document.getElementById(id);
+    campo?.addEventListener("input", validarIdentificacionCliente);
+    campo?.addEventListener("change", validarIdentificacionCliente);
+  });
   document.getElementById("precioLista")?.addEventListener("input", recalcularImportes);
   document.getElementById("bonificacion")?.addEventListener("input", recalcularImportes);
   document.getElementById("interesFinanciamiento")?.addEventListener("input", recalcularImportes);
@@ -74,6 +79,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     event.preventDefault();
     actualizarRequiredVisibles();
     actualizarInformacionLaboral();
+    validarIdentificacionCliente();
 
     if (!form.checkValidity()) {
       form.reportValidity();
@@ -437,6 +443,31 @@ function actualizarRequiredVisibles() {
     control.required = !contenedorOculto;
   });
 }
+
+// RFC, CURP y número de identificación son alternativas; nunca exigir los tres.
+// Un número de identificación sí requiere que se indique el tipo.
+function validarIdentificacionCliente() {
+  const numero = document.getElementById("clienteNumeroId");
+  const rfc = document.getElementById("clienteRfc");
+  const curp = document.getElementById("clienteCurp");
+  const tipo = document.getElementById("clienteTipoId");
+  if (!numero || !rfc || !curp || !tipo) return true;
+
+  const tieneNumero = Boolean(numero.value.trim());
+  const tieneRfc = Boolean(rfc.value.trim());
+  const tieneCurp = Boolean(curp.value.trim());
+  const completo = tieneNumero || tieneRfc || tieneCurp;
+
+  numero.setCustomValidity(completo ? "" : "Captura al menos un identificador: número de ID, RFC o CURP.");
+  tipo.setCustomValidity(!tieneNumero || tipo.value.trim()
+    ? "" : "Selecciona el tipo de identificación correspondiente al número capturado.");
+  [numero, tipo].forEach((control) => {
+    if (control.validationMessage) control.setAttribute("aria-invalid", "true");
+    else control.removeAttribute("aria-invalid");
+  });
+  return completo && (!tieneNumero || Boolean(tipo.value.trim()));
+}
+window.validarIdentificacionCliente = validarIdentificacionCliente;
 
 function agregarOpcion(select, valorOpcion) {
   const opcion = document.createElement("option");
