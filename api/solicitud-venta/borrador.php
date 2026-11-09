@@ -69,7 +69,7 @@ if (($payload['accion'] ?? '') === 'consultar_revision') {
         || !preg_match('/^SV-\d{4}-\d{6,}$/', $folioRevision)) {
         responderError(400, 'INVALID_DRAFT_REFERENCE', 'La referencia del borrador no es valida.');
     }
-    verificarBorradorUsuario($graphToken, $sharePointSiteId, $sharePointListId, $itemIdRevision, $usuario['correo']);
+    verificarBorradorUsuario($graphToken, $sharePointSiteId, $sharePointListId, $itemIdRevision, $usuario['correo'], $folioRevision);
     $revision = versionItemSharePoint($graphToken, $sharePointSiteId, $sharePointListId, $itemIdRevision);
     if ($revision === '') responderError(502, 'DRAFT_REVISION_UNAVAILABLE', 'No fue posible consultar la version del borrador.');
     echo json_encode(['ok' => true, 'revision' => $revision, 'itemId' => $itemIdRevision], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -324,7 +324,7 @@ if (($payload['accion'] ?? '') === 'guardar_borrador') {
             $status = 201;
             $mensaje = 'Borrador creado correctamente.';
         } else {
-            verificarBorradorUsuario($graphToken, $sharePointSiteId, $sharePointListId, $itemId, $usuario['correo']);
+            verificarBorradorUsuario($graphToken, $sharePointSiteId, $sharePointListId, $itemId, $usuario['correo'], $folio);
             if ($solicitudGrupo === '' && $folio !== '') $fields['Solicitud_Grupo'] = $folio;
             actualizarCamposItemSharePoint($graphToken, $sharePointSiteId, $sharePointListId, $itemId, $fields, $revisionEsperada);
             if ($folio === '') $folio = 'SV-' . gmdate('Y') . '-' . str_pad($itemId, 6, '0', STR_PAD_LEFT);
@@ -607,12 +607,12 @@ function actualizarCamposItemSharePoint(string $graphToken, string $siteId, stri
     ejecutarCurlJson($url, 'PATCH', $headers, $body);
 }
 
-function verificarBorradorUsuario(string $graphToken, string $siteId, string $listId, string $itemId, string $correoUsuario): void
+function verificarBorradorUsuario(string $graphToken, string $siteId, string $listId, string $itemId, string $correoUsuario, string $folio): void
 {
     $url = 'https://graph.microsoft.com/v1.0/sites/' . rawurlencode($siteId)
         . '/lists/' . rawurlencode($listId)
         . '/items/' . rawurlencode($itemId)
-        . '?$expand=fields($select=Title,field_1,Vendedor_Correo)';
+        . '?$expand=fields($select=Title,field_1,Vendedor_Correo,Solicitud_Grupo)';
 
     $item = ejecutarCurlJson($url, 'GET', ['Authorization: Bearer ' . $graphToken, 'Accept: application/json']);
     $fields = is_array($item['fields'] ?? null) ? $item['fields'] : [];
@@ -620,6 +620,12 @@ function verificarBorradorUsuario(string $graphToken, string $siteId, string $li
     $correoBorrador = strtolower(trim((string) ($fields['Vendedor_Correo'] ?? '')));
     $correoUsuario = strtolower(trim($correoUsuario));
 
+    $title = strtoupper(trim((string) ($fields['Title'] ?? '')));
+    $grupo = strtoupper(trim((string) ($fields['Solicitud_Grupo'] ?? '')));
+    $folio = strtoupper(trim($folio));
+    if ($folio === '' || ($title !== $folio && $grupo !== $folio)) {
+        throw new RuntimeException('El folio no corresponde al item del borrador. No se modificaron datos.');
+    }
     if ($estado !== 'BORRADOR') throw new RuntimeException('La solicitud ya no esta en estado BORRADOR y no puede editarse con esta accion.');
     if ($correoBorrador === '' || $correoUsuario === '' || !hash_equals($correoBorrador, $correoUsuario)) {
         throw new RuntimeException('El borrador no pertenece al usuario autenticado.');
