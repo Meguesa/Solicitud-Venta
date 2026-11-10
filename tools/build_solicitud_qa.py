@@ -235,6 +235,84 @@ def build_qa() -> None:
     content = exact_replace(content, needle, replacement + needle, "QA mail block")
     mail.write_text(content, encoding="utf-8")
 
+    # El expediente final utiliza Graph /users/.../messages directamente y NO
+    # pasa por svEnviarCorreoGraph. Bloquear su endpoint completo en QA para que
+    # ninguna prueba cree borradores ni envie mensajes por esos caminos.
+    final_email = api / "notificar-expediente-final.php"
+    content = final_email.read_text(encoding="utf-8")
+    entry = "require_once __DIR__ . '/autorizacion.php';"
+    deny = """// En QA el correo final es SOLO una prueba de bloqueo. No crear emails.
+http_response_code(409);
+echo json_encode([
+    'ok' => false,
+    'error' => 'QA_EMAIL_DISABLED',
+    'message' => 'Entorno QA: no se envia el expediente final ni se crean mensajes en Microsoft 365.'
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+exit;
+
+"""
+    content = exact_replace(content, entry, deny + entry, "QA no final email")
+    final_email.write_text(content, encoding="utf-8")
+
+    # El endpoint de notificacion a Cobranza tampoco debe utilizarse para
+    # probar entregas reales: mantener las transiciones pero negar el envio.
+    cobranza_email = api / "notificar-cobranza.php"
+    content = cobranza_email.read_text(encoding="utf-8")
+    content = exact_replace(
+        content, entry,
+        deny.replace("expediente final", "aviso a Cobranza") + entry,
+        "QA no cobranza email"
+    )
+    cobranza_email.write_text(content, encoding="utf-8")
+
+    # Mostrar entorno QA y bloquear la interfaz a usuarios distintos de Sistemas.
+    # Este filtro de interfaz complementa el bloqueo existente de endpoints;
+    # las paginas NO deben aceptar a cualquier usuario del Portal.
+    banner = (
+        '<div role="status" style="padding:13px;text-align:center;'
+        'background:#ffe5a1;color:#422800;font:700 15px system-ui">'
+        'ENTORNO DE PRUEBAS QA - SOLO DATOS FICTICIOS - NO ENVIAR CLIENTES REALES'
+        '</div>'
+    )
+    for page in [
+        DEST / "solicitud-venta-qa" / "index.php",
+        DEST / "solicitud-venta-qa" / "inicio" / "index.php",
+        DEST / "solicitud-venta-qa" / "vobo" / "index.php",
+    ]:
+        content = page.read_text(encoding="utf-8")
+        content = exact_replace(
+            content, "$user = svSolicitudUsuario();",
+            """$user = svSolicitudUsuario();
+if (!svQaAllowedEmail((string) ($user['email'] ?? ''))) {
+    http_response_code(403);
+    exit('Acceso QA exclusivo para cuenta Sistemas.');
+}""",
+            "QA UI user guard " + str(page)
+        )
+        if page.parent == DEST / "solicitud-venta-qa":
+            content = exact_replace(
+                content,
+                "echo $source;",
+                "$source = str_replace('<body>', '<body>' . " + repr(banner).replace("\\'", "'") + ", $source);\necho $source;",
+                "QA main banner"
+            )
+        else:
+            content = exact_replace(content, "<body>", "<body>\n" + banner, "QA page banner")
+        page.write_text(content, encoding="utf-8")
+
+    # La firma publica se mantiene como pagina de prueba, señalizada
+    # e independiente. Sus endpoints solo usan credenciales y lista QA.
+    public_signature = DEST / "firma-qa" / "index.html"
+    content = public_signature.read_text(encoding="utf-8")
+    content = exact_replace(content, "<body>", "<body>\n" + banner, "QA signature banner")
+    public_signature.write_text(content, encoding="utf-8")
+
+    # Garantias adicionales: el codigo final del endpoint nunca debe
+    # alcanzar Graph Mail y la interfaz no debe aceptar otras cuentas.
+    assert "QA_EMAIL_DISABLED" in final_email.read_text(encoding="utf-8")
+    assert "QA_EMAIL_DISABLED" in cobranza_email.read_text(encoding="utf-8")
+    assert "Acceso QA exclusivo" in (DEST / "solicitud-venta-qa" / "index.php").read_text(encoding="utf-8")
+
     (DEST / "solicitud-venta-qa" / "diagnostico.php").write_text(
         QA_DIAGNOSTIC, encoding="utf-8"
     )
