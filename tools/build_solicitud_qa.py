@@ -258,6 +258,12 @@ def build_qa() -> None:
     (DEST / "solicitud-venta-qa" / "diagnostico-esquema.php").write_text(
         qa_schema, encoding="utf-8"
     )
+    qa_schema_adjust = (ROOT / "qa" / "ajustar-esquema.php").read_text(encoding="utf-8")
+    if "svUsuarioAutenticado(" not in qa_schema_adjust or "svCurlJson(" not in qa_schema_adjust:
+        raise RuntimeError("QA_SCHEMA_ADJUST_INCOMPLETE")
+    (DEST / "solicitud-venta-qa" / "ajustar-esquema.php").write_text(
+        qa_schema_adjust, encoding="utf-8"
+    )
 
     # Checks que fallan antes de generar un paquete publicable.
     assert QA_SECRET_PATH in common.read_text(encoding="utf-8")
