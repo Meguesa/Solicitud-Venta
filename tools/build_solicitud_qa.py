@@ -8,6 +8,7 @@ No contiene secretos. El servidor leera unicamente la configuracion privada
 from __future__ import annotations
 
 import shutil
+import json
 from pathlib import Path
 from build_solicitud_package import ROOT, DEPLOY, build
 
@@ -293,7 +294,7 @@ if (!svQaAllowedEmail((string) ($user['email'] ?? ''))) {
             content = exact_replace(
                 content,
                 "echo $source;",
-                "$source = str_replace('<body>', '<body>' . " + repr(banner).replace("\\'", "'") + ", $source);\necho $source;",
+                "$source = str_replace('<body>', '<body>' . " + json.dumps(banner, ensure_ascii=False) + ", $source);\necho $source;",
                 "QA main banner"
             )
         else:
