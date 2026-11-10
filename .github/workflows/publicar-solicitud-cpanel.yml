@@ -129,7 +129,9 @@ jobs:
           mkdir -p qa-auditoria-resultados
           set +e
           node tests/qa/auditoria_escenarios_funcionales.js
-          echo $? > qa-auditoria-resultados/exit_code.txt
+          echo $? > qa-auditoria-resultados/exit_code_formulario.txt
+          php tests/qa/auditoria_permisos.php
+          echo $? > qa-auditoria-resultados/exit_code_permisos.txt
           exit 0
 
       - name: Publicar informe de escenarios QA
