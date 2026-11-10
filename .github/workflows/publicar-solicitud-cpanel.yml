@@ -21,6 +21,7 @@ on:
           - correccion
           - sesion
           - completo
+          - qa_integral
 
 permissions:
   contents: read
@@ -185,8 +186,64 @@ jobs:
           cd _deploy_qa
           QA_DEPLOY_SCOPE=diagnostico QA_DEPLOY_DRY_RUN=0 bash ../tools/deploy_solicitud_qa_ftps.sh
 
+
+  deploy_qa_integral:
+    name: Publicar SOLO Solicitud de Venta QA integral
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/qa/aislamiento-solicitud-venta-20261110' && inputs.alcance == 'qa_integral'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Descargar exclusivamente rama QA
+        uses: actions/checkout@v6
+
+      - name: Preparar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: json, curl, openssl, mbstring, fileinfo
+          coverage: none
+
+      - name: Construir paquete QA con barreras estrictas
+        run: python3 tools/build_solicitud_qa.py
+
+      - name: Validar TODO PHP QA y asegurar que correos esten bloqueados
+        shell: bash
+        run: |
+          set -euo pipefail
+          find _deploy_qa/api/solicitud-venta-qa _deploy_qa/solicitud-venta-qa _deploy_qa/firma-qa -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          grep -q QA_EMAIL_DISABLED _deploy_qa/api/solicitud-venta-qa/notificar-expediente-final.php
+          grep -q QA_EMAIL_DISABLED _deploy_qa/api/solicitud-venta-qa/notificar-cobranza.php
+          grep -q QA_EMAIL_DISABLED _deploy_qa/api/solicitud-venta-qa/notificaciones.php
+          grep -q 'Acceso QA exclusivo' _deploy_qa/solicitud-venta-qa/index.php
+          grep -q 'Acceso QA exclusivo' _deploy_qa/solicitud-venta-qa/inicio/index.php
+          grep -q 'Acceso QA exclusivo' _deploy_qa/solicitud-venta-qa/vobo/index.php
+          bash -n tools/deploy_solicitud_qa_ftps.sh
+
+      - name: Validar destino FTPS integral sin red
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd _deploy_qa
+          QA_DEPLOY_SCOPE=completo QA_DEPLOY_DRY_RUN=1 bash ../tools/deploy_solicitud_qa_ftps.sh > /dev/null
+
+      - name: Instalar cliente FTPS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp
+
+      - name: Publicar solo rutas QA, nunca produccion
+        shell: bash
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cd _deploy_qa
+          QA_DEPLOY_SCOPE=completo QA_DEPLOY_DRY_RUN=0 bash ../tools/deploy_solicitud_qa_ftps.sh
+
   deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && inputs.alcance != 'qa_integral'
     name: Construir y publicar Solicitud de Venta
     runs-on: ubuntu-latest
     timeout-minutes: 30
