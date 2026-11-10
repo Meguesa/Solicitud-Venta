@@ -246,6 +246,12 @@ def build_qa() -> None:
     (DEST / "solicitud-venta-qa" / "prueba-escritura.php").write_text(
         require_qa_probe, encoding="utf-8"
     )
+    qa_list_probe = (ROOT / "qa" / "prueba-lista.php").read_text(encoding="utf-8")
+    if "svUsuarioAutenticado(" not in qa_list_probe or "svCurlJson(" not in qa_list_probe:
+        raise RuntimeError("QA_LIST_PROBE_INCOMPLETE")
+    (DEST / "solicitud-venta-qa" / "prueba-lista.php").write_text(
+        qa_list_probe, encoding="utf-8"
+    )
 
     # Checks que fallan antes de generar un paquete publicable.
     assert QA_SECRET_PATH in common.read_text(encoding="utf-8")
