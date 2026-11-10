@@ -1,6 +1,7 @@
 let borradorActual = {
   itemId: "",
-  folio: ""
+  folio: "",
+  revision: ""
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -52,6 +53,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   precioTotal.addEventListener("input", recalcularImportes);
   enganche.addEventListener("input", recalcularImportes);
   mensualidades.addEventListener("input", recalcularImportes);
+  ["clienteTipoId", "clienteNumeroId", "clienteRfc", "clienteCurp"].forEach((id) => {
+    const campo = document.getElementById(id);
+    campo?.addEventListener("input", validarIdentificacionCliente);
+    campo?.addEventListener("change", validarIdentificacionCliente);
+  });
   document.getElementById("precioLista")?.addEventListener("input", recalcularImportes);
   document.getElementById("bonificacion")?.addEventListener("input", recalcularImportes);
   document.getElementById("interesFinanciamiento")?.addEventListener("input", recalcularImportes);
@@ -59,7 +65,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("btnReset").addEventListener("click", () => {
     form.reset();
-    borradorActual = { itemId: "", folio: "" };
+    borradorActual = { itemId: "", folio: "", revision: "" };
     inicializarFecha();
     copiarUsuarioEnVendedor();
     actualizarFormularioDinamico();
@@ -74,6 +80,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     event.preventDefault();
     actualizarRequiredVisibles();
     actualizarInformacionLaboral();
+    validarIdentificacionCliente();
 
     if (!form.checkValidity()) {
       form.reportValidity();
@@ -438,6 +445,31 @@ function actualizarRequiredVisibles() {
   });
 }
 
+// RFC, CURP y número de identificación son alternativas; nunca exigir los tres.
+// Un número de identificación sí requiere que se indique el tipo.
+function validarIdentificacionCliente() {
+  const numero = document.getElementById("clienteNumeroId");
+  const rfc = document.getElementById("clienteRfc");
+  const curp = document.getElementById("clienteCurp");
+  const tipo = document.getElementById("clienteTipoId");
+  if (!numero || !rfc || !curp || !tipo) return true;
+
+  const tieneNumero = Boolean(numero.value.trim());
+  const tieneRfc = Boolean(rfc.value.trim());
+  const tieneCurp = Boolean(curp.value.trim());
+  const completo = tieneNumero || tieneRfc || tieneCurp;
+
+  numero.setCustomValidity(completo ? "" : "Captura al menos un identificador: número de ID, RFC o CURP.");
+  tipo.setCustomValidity(!tieneNumero || tipo.value.trim()
+    ? "" : "Selecciona el tipo de identificación correspondiente al número capturado.");
+  [numero, tipo].forEach((control) => {
+    if (control.validationMessage) control.setAttribute("aria-invalid", "true");
+    else control.removeAttribute("aria-invalid");
+  });
+  return completo && (!tieneNumero || Boolean(tipo.value.trim()));
+}
+window.validarIdentificacionCliente = validarIdentificacionCliente;
+
 function agregarOpcion(select, valorOpcion) {
   const opcion = document.createElement("option");
   opcion.value = valorOpcion;
@@ -507,6 +539,7 @@ function construirPayloadBorrador() {
     accion: "guardar_borrador",
     itemId: borradorActual.itemId,
     folio: borradorActual.folio,
+    revision: borradorActual.revision || "",
     tipoSolicitud: valor("tipoSolicitud"), tipoOperacion: valor("tipoOperacion"), tipoVentaProcap: valor("tipoVentaProcap"),
     fechaSolicitud: valor("fechaSolicitud"), referencia: valor("referencia"), origenVenta: valor("origenVenta"), lugar: valor("lugar"),
     tipoContrato: valor("tipoContrato"),
@@ -562,7 +595,13 @@ function construirPayloadBorrador() {
   };
 }
 
+let guardadoBorradorEnCurso = false;
 async function guardarBorrador() {
+  // Protege contra llamadas simultáneas desde firmas, calculadora y botones.
+  if (guardadoBorradorEnCurso) {
+    mostrarMensaje("Ya se está guardando esta solicitud. Comprueba el resultado antes de reintentar.", "error");
+    return false;
+  }
   const saveButton = document.getElementById("btnSaveDraft");
   const payload = construirPayloadBorrador();
 
@@ -572,6 +611,7 @@ async function guardarBorrador() {
   }
 
   try {
+    guardadoBorradorEnCurso = true;
     saveButton.disabled = true;
     mostrarMensaje(borradorActual.itemId ? "Actualizando borrador en SharePoint..." : "Guardando borrador en SharePoint...");
     const token = await window.solicitudVentaAuth.getBackendAccessToken();
@@ -588,6 +628,7 @@ async function guardarBorrador() {
 
     borradorActual.itemId = String(resultado.itemId || borradorActual.itemId || "");
     borradorActual.folio = String(resultado.folio || borradorActual.folio || "");
+    borradorActual.revision = String(resultado.revision || "");
     actualizarFolio(borradorActual.folio);
     mostrarMensaje(`Borrador ${borradorActual.folio} guardado correctamente en SharePoint.`, "ok");
     return true;
@@ -596,9 +637,31 @@ async function guardarBorrador() {
     mostrarMensaje(`No fue posible guardar el borrador: ${error.message || error}`, "error");
     return false;
   } finally {
+    guardadoBorradorEnCurso = false;
     saveButton.disabled = false;
   }
 }
+
+async function refrescarRevisionBorrador(folio, itemId) {
+  const token = await window.solicitudVentaAuth.getBackendAccessToken();
+  if (!token) throw new Error("La sesión expiró antes de obtener la versión del borrador.");
+  const response = await fetch("/api/solicitud-venta/borrador.php", {
+    method: "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+    body: JSON.stringify({ accion: "consultar_revision", folio, itemId })
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok || !result?.ok || !result.revision) {
+    throw new Error(result?.message || result?.error || `HTTP ${response.status}`);
+  }
+  if (borradorActual.folio !== folio || String(borradorActual.itemId) !== String(itemId)) {
+    throw new Error("El borrador activo cambió durante la consulta de versión.");
+  }
+  borradorActual.revision = String(result.revision);
+  return borradorActual.revision;
+}
+window.solicitudVentaRefrescarRevision = refrescarRevisionBorrador;
 
 function mostrarMensaje(texto, tipo = "") {
   const mensaje = document.getElementById("formMessage");

@@ -1,6 +1,9 @@
 name: Publicar Solicitud de Venta independiente en cPanel
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -18,16 +21,258 @@ on:
           - correccion
           - sesion
           - completo
+          - qa_integral
 
 permissions:
   contents: read
 
 concurrency:
-  group: deploy-solicitud-independiente
+  group: solicitud-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  qa:
+    if: github.event_name == 'pull_request'
+    name: Verificación aislada (sin publicar)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Descargar repositorio para auditoría
+        uses: actions/checkout@v6
+      - name: Preparar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: json, curl, openssl, mbstring
+          coverage: none
+      - name: Validar sintaxis de todo PHP
+        shell: bash
+        run: |
+          set -euo pipefail
+          find api vobo -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l index.php
+      - name: Validar sintaxis de JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          find src/js vobo -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Pruebas de identificacion cliente (backend)
+        shell: bash
+        run: |
+          php <<'PHP'
+          <?php
+          require 'api/solicitud-venta/_common.php';
+          $casos = [
+              [['field_5' => '123', 'Cliente_Tipo_ID' => 'PASAPORTE'], true],
+              [['field_6' => 'RFC123'], true],
+              [['field_7' => 'CURP123'], true],
+              [['field_5' => '123'], false],
+              [[], false],
+              [['field_6' => 'RFC123', 'field_7' => 'CURP123'], true],
+          ];
+          foreach ($casos as [$datos, $esperado]) {
+              if (svIdentificacionClienteValida($datos)['ok'] !== $esperado) {
+                  throw new RuntimeException('Fallo de validacion de identificacion cliente');
+              }
+          }
+          echo '6 reglas de identificacion backend aprobadas', PHP_EOL;
+          PHP
+
+      - name: Pruebas de identificacion cliente (formulario)
+        shell: bash
+        run: |
+          node <<'JS'
+          const fs = require('node:fs');
+          const code = fs.readFileSync('src/js/app.js', 'utf8');
+          const start = code.indexOf('function validarIdentificacionCliente()');
+          const end = code.indexOf('window.validarIdentificacionCliente =', start);
+          if (start < 0 || end < 0) throw new Error('No se encontro la validacion del formulario.');
+          const validate = new Function('document', code.slice(start, end) + '\nreturn validarIdentificacionCliente;');
+          const casos = [
+            [{ rfc: 'RFC123' }, true],
+            [{ curp: 'CURP123' }, true],
+            [{ numero: '123', tipo: 'PASAPORTE' }, true],
+            [{ numero: '123' }, false],
+            [{}, false],
+            [{ rfc: 'RFC123', curp: 'CURP123' }, true]
+          ];
+          for (const [valores, esperado] of casos) {
+            const campos = {};
+            for (const [id, valor] of Object.entries({
+              clienteNumeroId: valores.numero || '',
+              clienteRfc: valores.rfc || '',
+              clienteCurp: valores.curp || '',
+              clienteTipoId: valores.tipo || ''
+            })) {
+              campos[id] = {
+                value: valor, validationMessage: '',
+                setCustomValidity(msg) { this.validationMessage = msg; },
+                setAttribute() {}, removeAttribute() {}
+              };
+            }
+            const document = { getElementById: id => campos[id] };
+            if (validate(document)() !== esperado) throw new Error('Fallo de validacion de formulario.');
+          }
+          console.log('6 reglas de identificacion frontend aprobadas');
+          JS
+
+      - name: Simular dos sesiones SharePoint y reintentos de notificacion
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/qa/simulacion_concurrencia_notificacion.php
+          node tests/qa/guardado_doble.js
+
+      - name: Ejecutar matriz funcional QA automatizada (registrar hallazgos)
+        shell: bash
+        run: |
+          mkdir -p qa-auditoria-resultados
+          set +e
+          node tests/qa/auditoria_escenarios_funcionales.js
+          echo $? > qa-auditoria-resultados/exit_code_formulario.txt
+          php tests/qa/auditoria_permisos.php
+          echo $? > qa-auditoria-resultados/exit_code_permisos.txt
+          exit 0
+
+      - name: Publicar informe de escenarios QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auditoria-solicitud-venta-escenarios
+          path: qa-auditoria-resultados/
+          if-no-files-found: warn
+
+      - name: Construir paquete (sin FTP ni correos)
+        run: python3 tools/build_solicitud_package.py
+
+      - name: Construir paquete aislado de Solicitud Venta QA (sin publicar)
+        run: python3 tools/build_solicitud_qa.py
+
+      - name: Validar PHP empaquetado QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          find _deploy_qa/api _deploy_qa/solicitud-venta-qa _deploy_qa/firma-qa -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Simular FTPS QA y verificar lista blanca de destinos
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n tools/deploy_solicitud_qa_ftps.sh
+          cd _deploy_qa
+          QA_DEPLOY_SCOPE=diagnostico QA_DEPLOY_DRY_RUN=1 bash ../tools/deploy_solicitud_qa_ftps.sh
+          QA_DEPLOY_SCOPE=completo QA_DEPLOY_DRY_RUN=1 bash ../tools/deploy_solicitud_qa_ftps.sh > /dev/null
+
+      - name: Certificar matriz funcional QA sin ocultar defectos
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f qa-auditoria-resultados/exit_code_formulario.txt
+          test -f qa-auditoria-resultados/exit_code_permisos.txt
+          test "$(cat qa-auditoria-resultados/exit_code_formulario.txt)" = "0"
+          test "$(cat qa-auditoria-resultados/exit_code_permisos.txt)" = "0"
+
+  deploy_qa_diagnostico:
+    name: Publicar diagnostico QA privado
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/qa/aislamiento-solicitud-venta-20261110' && inputs.alcance == 'sesion'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Descargar rama QA
+        uses: actions/checkout@v6
+      - name: Preparar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: curl, json, openssl, mbstring
+          coverage: none
+      - name: Construir paquete QA de forma aislada
+        run: python3 tools/build_solicitud_qa.py
+      - name: Validar solo diagnostico QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l _deploy_qa/api/solicitud-venta-qa/_qa_guard.php
+          php -l _deploy_qa/api/solicitud-venta-qa/_common.php
+          php -l _deploy_qa/solicitud-venta-qa/diagnostico.php
+          php -l _deploy_qa/solicitud-venta-qa/prueba-escritura.php
+          bash -n tools/deploy_solicitud_qa_ftps.sh
+          cd _deploy_qa
+          QA_DEPLOY_SCOPE=diagnostico QA_DEPLOY_DRY_RUN=1 bash ../tools/deploy_solicitud_qa_ftps.sh
+      - name: Instalar FTPS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp
+      - name: Publicar exclusivamente diagnostico QA
+        shell: bash
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cd _deploy_qa
+          QA_DEPLOY_SCOPE=diagnostico QA_DEPLOY_DRY_RUN=0 bash ../tools/deploy_solicitud_qa_ftps.sh
+
+
+  deploy_qa_integral:
+    name: Publicar SOLO Solicitud de Venta QA integral
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/qa/aislamiento-solicitud-venta-20261110' && inputs.alcance == 'qa_integral'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Descargar exclusivamente rama QA
+        uses: actions/checkout@v6
+
+      - name: Preparar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: json, curl, openssl, mbstring, fileinfo
+          coverage: none
+
+      - name: Construir paquete QA con barreras estrictas
+        run: python3 tools/build_solicitud_qa.py
+
+      - name: Validar TODO PHP QA y asegurar que correos esten bloqueados
+        shell: bash
+        run: |
+          set -euo pipefail
+          find _deploy_qa/api/solicitud-venta-qa _deploy_qa/solicitud-venta-qa _deploy_qa/firma-qa -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          grep -q QA_EMAIL_DISABLED _deploy_qa/api/solicitud-venta-qa/notificar-expediente-final.php
+          grep -q QA_EMAIL_DISABLED _deploy_qa/api/solicitud-venta-qa/notificar-cobranza.php
+          grep -q QA_EMAIL_DISABLED _deploy_qa/api/solicitud-venta-qa/notificaciones.php
+          grep -q 'Acceso QA exclusivo' _deploy_qa/solicitud-venta-qa/index.php
+          grep -q 'Acceso QA exclusivo' _deploy_qa/solicitud-venta-qa/inicio/index.php
+          grep -q 'Acceso QA exclusivo' _deploy_qa/solicitud-venta-qa/vobo/index.php
+          bash -n tools/deploy_solicitud_qa_ftps.sh
+
+      - name: Validar destino FTPS integral sin red
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd _deploy_qa
+          QA_DEPLOY_SCOPE=completo QA_DEPLOY_DRY_RUN=1 bash ../tools/deploy_solicitud_qa_ftps.sh > /dev/null
+
+      - name: Instalar cliente FTPS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp
+
+      - name: Publicar solo rutas QA, nunca produccion
+        shell: bash
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cd _deploy_qa
+          QA_DEPLOY_SCOPE=completo QA_DEPLOY_DRY_RUN=0 bash ../tools/deploy_solicitud_qa_ftps.sh
+
   deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && inputs.alcance != 'qa_integral'
     name: Construir y publicar Solicitud de Venta
     runs-on: ubuntu-latest
     timeout-minutes: 30

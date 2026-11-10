@@ -167,6 +167,11 @@
 
       try {
         await guardarSucursales(folio);
+        // La sincronización de componentes y sucursales puede modificar
+        // el item principal después del guardado inicial. Refrescar ETag.
+        if (typeof window.solicitudVentaRefrescarRevision === 'function') {
+          await window.solicitudVentaRefrescarRevision(folio, String(borradorActual?.itemId || ''));
+        }
         return resultado;
       } catch (error) {
         console.error('No fue posible guardar las sucursales de los componentes:', error);

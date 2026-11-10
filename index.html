@@ -87,10 +87,11 @@
         <section class="form-section">
           <div class="section-title"><span>3</span><div><h3>Información del cliente</h3><p>Datos generales del titular conforme a los formatos físicos.</p></div></div>
           <div class="form-grid grid-4">
-            <label>Tipo de ID<select id="clienteTipoId" required><option value="">Selecciona</option><option>CREDENCIAL DE ELECTOR</option><option>PASAPORTE</option><option>SEGURO SOCIAL</option><option>C.U.R.P.</option><option>LICENCIA</option><option>OTRO</option></select></label>
-            <label>Número de ID<input id="clienteNumeroId" type="text" required></label>
-            <label>R.F.C.<input id="clienteRfc" type="text" required></label>
-            <label>C.U.R.P.<input id="clienteCurp" type="text" required></label>
+            <label>Tipo de ID<select id="clienteTipoId" aria-describedby="identificacionAyuda"><option value="">Selecciona</option><option>CREDENCIAL DE ELECTOR</option><option>PASAPORTE</option><option>SEGURO SOCIAL</option><option>C.U.R.P.</option><option>LICENCIA</option><option>OTRO</option></select></label>
+            <label>Número de ID<input id="clienteNumeroId" type="text" aria-describedby="identificacionAyuda"></label>
+            <label>R.F.C.<input id="clienteRfc" type="text" aria-describedby="identificacionAyuda"></label>
+            <label>C.U.R.P.<input id="clienteCurp" type="text" aria-describedby="identificacionAyuda"></label>
+            <p id="identificacionAyuda" class="span-2 muted">Captura al menos uno: número de identificación, RFC o CURP. Si utilizas número de identificación, selecciona su tipo.</p>
 
             <label>Apellido paterno<input id="clienteApellidoPaterno" type="text" required></label>
             <label>Apellido materno<input id="clienteApellidoMaterno" type="text" required></label>
@@ -250,25 +251,25 @@
 
   <script src="config.js"></script>
   <script src="auth.js"></script>
-  <script src="app.js?v=20261109-componentes-vobo-1"></script>
+  <script src="app.js?v=20261109-validacion-identidad-2"></script>
   <script src="componentes.js?v=20261104-servicio-cremacion-1"></script>
   <script src="catalogo-ui.js?v=20261104-servicio-cremacion-1"></script>
   <script src="componentes-sync.js?v=20261109-componentes-vobo-1"></script>
-  <script src="correccion-validacion.js?v=20260911-cleanup-3"></script>
+  <script src="correccion-validacion.js?v=20261109-qa-guard-1"></script>
   <script src="consentimiento-privacidad.js?v=20260911-cleanup-3"></script>
-  <script src="firma-remota.js?v=20260911-cleanup-3"></script>
+  <script src="firma-remota.js?v=20261109-qa-guard-1"></script>
   <script src="firma-remota-seguimiento.js?v=20260911-cleanup-3"></script>
   <script src="firma-remota-gestion.js?v=20260911-cleanup-3"></script>
-  <script src="extras.js?v=20261109-componentes-vobo-1"></script>
+  <script src="extras.js?v=20261109-validacion-identidad-2"></script>
   <script src="documentos-identificacion-doble.js?v=20260911-cleanup-3"></script>
-  <script src="persistencia.js?v=20261109-componentes-vobo-1"></script>
+  <script src="persistencia.js?v=20261109-concurrencia-1"></script>
   <script src="financiamiento-bridge.js?v=20260911-cleanup-3"></script>
-  <script src="financiamiento-integracion.js?v=20261104-flujo-vobo-1"></script>
-  <script src="sucursales-componentes.js?v=20261109-componentes-vobo-1"></script>
+  <script src="financiamiento-integracion.js?v=20261109-qa-guard-1"></script>
+  <script src="sucursales-componentes.js?v=20261109-concurrencia-1"></script>
   <script src="wizard.js?v=20260911-cleanup-3"></script>
   <script src="resumen-directo.js?v=20260911-cleanup-3"></script>
   <script src="firma-remota-preflight.js?v=20260911-cleanup-3"></script>
-  <script src="correccion.js?v=20260911-cleanup-3"></script>
+  <script src="correccion.js?v=20261109-qa-guard-1"></script>
   <script src="documentacion.js?v=20260911-cleanup-3"></script>
 </body>
 </html>

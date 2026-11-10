@@ -24,6 +24,13 @@ if ($etapa === 'cobranza') svSolicitudRequireCobranzaVobo();
 else svSolicitudRequireVobo();
 
 $user = svSolicitudUsuario();
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    http_response_code(401);
+    exit('La sesión de seguridad no está activa.');
+}
+if (empty($_SESSION['sv_notification_retry_csrf']) || !is_string($_SESSION['sv_notification_retry_csrf'])) {
+    $_SESSION['sv_notification_retry_csrf'] = bin2hex(random_bytes(24));
+}
 $name = htmlspecialchars((string) ($user['name'] ?? 'Usuario'), ENT_QUOTES, 'UTF-8');
 $email = htmlspecialchars((string) ($user['email'] ?? ''), ENT_QUOTES, 'UTF-8');
 $isCobranza = $etapa === 'cobranza';
@@ -106,6 +113,13 @@ $approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
       <section class="detail-block"><h3>Documentación y firmas</h3><div id="documentsList" class="documents-grid"></div></section>
       <section class="detail-block"><h3>Información capturada</h3><p class="muted">Se muestran únicamente los campos capturados en la solicitud, con los mismos nombres utilizados por el vendedor.</p><div id="detailFields" class="detail-grid"></div></section>
 
+      <?php if (!$isCobranza): ?>
+      <section class="detail-block" aria-label="Notificación a Gerencia Comercial">
+        <h3>Notificación de Vo.Bo. Comercial</h3>
+        <p id="notificacionComercialEstado" class="muted" role="status">Consultando el estado del correo...</p>
+        <button id="btnReintentarNotificacion" type="button" class="secondary-button" hidden>Reintentar aviso a Gerencia Comercial</button>
+      </section>
+      <?php endif; ?>
       <section class="decision-panel" aria-labelledby="decisionTitle">
         <div class="decision-copy"><strong id="decisionTitle"><?= htmlspecialchars($decisionTitle, ENT_QUOTES, 'UTF-8') ?></strong><p><?= htmlspecialchars($decisionText, ENT_QUOTES, 'UTF-8') ?></p></div>
         <div class="decision-actions">
@@ -124,6 +138,7 @@ $approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
 
   <script>
     window.SOLICITUD_VOBO_ETAPA = <?= json_encode($etapa, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+    window.SOLICITUD_RETRY_TOKEN = <?= json_encode((string) $_SESSION['sv_notification_retry_csrf']) ?>;
     (() => {
       const nativeFetch = window.fetch.bind(window);
       window.fetch = (input, init) => {
@@ -133,7 +148,7 @@ $approveLabel = $isCobranza ? 'Aprobar Cobranza' : 'Aprobar Vo.Bo. Comercial';
       };
     })();
   </script>
-  <script src="./vobo.js?v=20260921-expediente-final-1"></script>
+  <script src="./vobo.js?v=20261109-notificacion-1"></script>
   <script src="./vobo-expediente.js?v=20260903-expediente-1"></script>
 </body>
 </html>

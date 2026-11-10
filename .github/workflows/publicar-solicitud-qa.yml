@@ -1,0 +1,72 @@
+name: Publicar diagnostico Solicitud Venta QA (aislado)
+
+on:
+  workflow_dispatch:
+    inputs:
+      alcance:
+        description: "Despliegue limitado a diagnostico QA de solo lectura"
+        required: true
+        type: choice
+        default: diagnostico
+        options:
+          - diagnostico
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-solicitud-venta-qa
+  cancel-in-progress: false
+
+jobs:
+  deploy_qa_diagnostic:
+    name: Validar y publicar solo diagnostico QA
+    if: github.ref == 'refs/heads/qa/aislamiento-solicitud-venta-20261110' && inputs.alcance == 'diagnostico'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Descargar codigo de rama QA
+        uses: actions/checkout@v6
+
+      - name: Preparar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: curl, json, openssl, mbstring
+          coverage: none
+
+      - name: Construir paquete QA
+        run: python3 tools/build_solicitud_qa.py
+
+      - name: Verificar sintaxis de los 3 archivos del diagnostico
+        run: |
+          set -euo pipefail
+          php -l _deploy_qa/api/solicitud-venta-qa/_qa_guard.php
+          php -l _deploy_qa/api/solicitud-venta-qa/_common.php
+          php -l _deploy_qa/solicitud-venta-qa/diagnostico.php
+          php -l _deploy_qa/solicitud-venta-qa/prueba-escritura.php
+          php -l _deploy_qa/solicitud-venta-qa/prueba-lista.php
+          php -l _deploy_qa/solicitud-venta-qa/diagnostico-esquema.php
+          php -l _deploy_qa/solicitud-venta-qa/ajustar-esquema.php
+          bash -n tools/deploy_solicitud_qa_ftps.sh
+
+      - name: Simular destinos permitidos sin red
+        run: |
+          set -euo pipefail
+          cd _deploy_qa
+          QA_DEPLOY_SCOPE=diagnostico QA_DEPLOY_DRY_RUN=1 bash ../tools/deploy_solicitud_qa_ftps.sh
+
+      - name: Instalar FTPS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp
+
+      - name: Publicar SOLO diagnostico QA
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cd _deploy_qa
+          QA_DEPLOY_SCOPE=diagnostico QA_DEPLOY_DRY_RUN=0 bash ../tools/deploy_solicitud_qa_ftps.sh
