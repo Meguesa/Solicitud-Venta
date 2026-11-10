@@ -238,6 +238,14 @@ def build_qa() -> None:
     (DEST / "solicitud-venta-qa" / "diagnostico.php").write_text(
         QA_DIAGNOSTIC, encoding="utf-8"
     )
+    # Solo prueba manual de archivo temporal, sin incluir otras pantallas.
+    qa_write_probe = ROOT / "qa" / "prueba-escritura.php"
+    require_qa_probe = qa_write_probe.read_text(encoding="utf-8")
+    if "svUsuarioAutenticado(" not in require_qa_probe or "svCurlJson(" not in require_qa_probe:
+        raise RuntimeError("QA_WRITE_PROBE_INCOMPLETE")
+    (DEST / "solicitud-venta-qa" / "prueba-escritura.php").write_text(
+        require_qa_probe, encoding="utf-8"
+    )
 
     # Checks que fallan antes de generar un paquete publicable.
     assert QA_SECRET_PATH in common.read_text(encoding="utf-8")
