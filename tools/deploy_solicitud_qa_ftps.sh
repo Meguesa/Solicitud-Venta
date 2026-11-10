@@ -17,6 +17,7 @@ test -s "api/solicitud-venta-qa/_qa_guard.php"
 test -s "api/solicitud-venta-qa/_common.php"
 test -s "solicitud-venta-qa/diagnostico.php"
 test -s "solicitud-venta-qa/prueba-escritura.php"
+test -s "solicitud-venta-qa/prueba-lista.php"
 test ! -e "api/solicitud-venta/_common.php"
 test ! -e "solicitud-venta/index.php"
 test ! -e "firma/index.html"
@@ -67,6 +68,7 @@ if [[ "$SCOPE" == "diagnostico" ]]; then
   append_file "api/solicitud-venta-qa/_common.php" "api/solicitud-venta-qa/_common.php"
   append_file "solicitud-venta-qa/diagnostico.php" "solicitud-venta-qa/diagnostico.php"
   append_file "solicitud-venta-qa/prueba-escritura.php" "solicitud-venta-qa/prueba-escritura.php"
+  append_file "solicitud-venta-qa/prueba-lista.php" "solicitud-venta-qa/prueba-lista.php"
 else
   for folder in "solicitud-venta-qa" "api/solicitud-venta-qa" "firma-qa"; do
     while IFS= read -r -d '' file; do
