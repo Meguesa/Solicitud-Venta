@@ -166,6 +166,7 @@ jobs:
           php -l _deploy_qa/api/solicitud-venta-qa/_qa_guard.php
           php -l _deploy_qa/api/solicitud-venta-qa/_common.php
           php -l _deploy_qa/solicitud-venta-qa/diagnostico.php
+          php -l _deploy_qa/solicitud-venta-qa/prueba-escritura.php
           bash -n tools/deploy_solicitud_qa_ftps.sh
           cd _deploy_qa
           QA_DEPLOY_SCOPE=diagnostico QA_DEPLOY_DRY_RUN=1 bash ../tools/deploy_solicitud_qa_ftps.sh
