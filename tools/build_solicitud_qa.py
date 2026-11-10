@@ -252,6 +252,12 @@ def build_qa() -> None:
     (DEST / "solicitud-venta-qa" / "prueba-lista.php").write_text(
         qa_list_probe, encoding="utf-8"
     )
+    qa_schema = (ROOT / "qa" / "diagnostico-esquema.php").read_text(encoding="utf-8")
+    if "svUsuarioAutenticado(" not in qa_schema or "QA_SCHEMA_CHECK_FAILED" not in qa_schema:
+        raise RuntimeError("QA_SCHEMA_DIAGNOSTIC_INCOMPLETE")
+    (DEST / "solicitud-venta-qa" / "diagnostico-esquema.php").write_text(
+        qa_schema, encoding="utf-8"
+    )
 
     # Checks que fallan antes de generar un paquete publicable.
     assert QA_SECRET_PATH in common.read_text(encoding="utf-8")
