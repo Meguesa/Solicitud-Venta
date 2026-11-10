@@ -123,6 +123,23 @@ jobs:
           php tests/qa/simulacion_concurrencia_notificacion.php
           node tests/qa/guardado_doble.js
 
+      - name: Ejecutar matriz funcional QA automatizada (registrar hallazgos)
+        shell: bash
+        run: |
+          mkdir -p qa-auditoria-resultados
+          set +e
+          node tests/qa/auditoria_escenarios_funcionales.js
+          echo $? > qa-auditoria-resultados/exit_code.txt
+          exit 0
+
+      - name: Publicar informe de escenarios QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auditoria-solicitud-venta-escenarios
+          path: qa-auditoria-resultados/
+          if-no-files-found: warn
+
       - name: Construir paquete (sin FTP ni correos)
         run: python3 tools/build_solicitud_package.py
 
