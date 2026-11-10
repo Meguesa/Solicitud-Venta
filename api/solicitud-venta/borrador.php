@@ -152,6 +152,9 @@ if (($payload['accion'] ?? '') === 'guardar_borrador') {
 
     $apellidos = trim(textoPayload($payload, 'clienteApellidoPaterno') . ' ' . textoPayload($payload, 'clienteApellidoMaterno'));
     if ($apellidos !== '') $fields['field_9'] = preg_replace('/\s+/', ' ', $apellidos) ?: $apellidos;
+    // QA: apellidos por separado al existir columnas, con campo legado intacto.
+    agregarTextoResuelto($fields, $mapaColumnas, ['Cliente_Apellido_Paterno'], $payload, 'clienteApellidoPaterno');
+    agregarTextoResuelto($fields, $mapaColumnas, ['Cliente_Apellido_Materno'], $payload, 'clienteApellidoMaterno');
 
     agregarFecha($fields, 'field_10', $payload, 'clienteFechaNacimiento');
     agregarNumero($fields, 'field_11', $payload, 'clienteEdad');
