@@ -44,6 +44,8 @@ jobs:
           php -l _deploy_qa/api/solicitud-venta-qa/_qa_guard.php
           php -l _deploy_qa/api/solicitud-venta-qa/_common.php
           php -l _deploy_qa/solicitud-venta-qa/diagnostico.php
+          php -l _deploy_qa/solicitud-venta-qa/prueba-escritura.php
+          php -l _deploy_qa/solicitud-venta-qa/prueba-lista.php
           bash -n tools/deploy_solicitud_qa_ftps.sh
 
       - name: Simular destinos permitidos sin red
