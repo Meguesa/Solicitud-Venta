@@ -163,6 +163,16 @@ jobs:
           QA_DEPLOY_SCOPE=diagnostico QA_DEPLOY_DRY_RUN=1 bash ../tools/deploy_solicitud_qa_ftps.sh
           QA_DEPLOY_SCOPE=completo QA_DEPLOY_DRY_RUN=1 bash ../tools/deploy_solicitud_qa_ftps.sh > /dev/null
 
+      - name: Certificar matriz funcional QA sin ocultar defectos
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f qa-auditoria-resultados/exit_code_formulario.txt
+          test -f qa-auditoria-resultados/exit_code_permisos.txt
+          test "$(cat qa-auditoria-resultados/exit_code_formulario.txt)" = "0"
+          test "$(cat qa-auditoria-resultados/exit_code_permisos.txt)" = "0"
+
   deploy_qa_diagnostico:
     name: Publicar diagnostico QA privado
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/qa/aislamiento-solicitud-venta-20261110' && inputs.alcance == 'sesion'
