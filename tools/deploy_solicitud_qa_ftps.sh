@@ -50,7 +50,12 @@ append_file() {
   assert_remote_qa "$remote_file"
   parent="${remote_file%/*}"
   if [[ -z "${DIRS[$parent]+present}" ]]; then
-    printf "mkdir -p '%s'\n" "$parent" >> "$BATCH"
+    # lftp mkdir -p puede devolver 550 "File exists" si el directorio ya existe.
+    # Primero verificarlo sin cambiar el directorio remoto; crearlo solo si falta.
+    # -f tolera respuestas 550 de "File exists"; la segunda verificacion exige
+    # que el directorio realmente sea consultable antes de subir archivos.
+    printf "cls -d '%s' > /dev/null || mkdir -pf '%s'\n" "$parent" "$parent" >> "$BATCH"
+    printf "cls -d '%s' > /dev/null\n" "$parent" >> "$BATCH"
     DIRS[$parent]=1
   fi
   printf "put '%s' -o '%s'\n" "$local_file" "$remote_file" >> "$BATCH"
