@@ -125,6 +125,15 @@ jobs:
       - name: Construir paquete (sin FTP ni correos)
         run: python3 tools/build_solicitud_package.py
 
+      - name: Construir paquete aislado de Solicitud Venta QA (sin publicar)
+        run: python3 tools/build_solicitud_qa.py
+
+      - name: Validar PHP empaquetado QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          find _deploy_qa/api _deploy_qa/solicitud-venta-qa _deploy_qa/firma-qa -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
   deploy:
     if: github.event_name != 'pull_request'
     name: Construir y publicar Solicitud de Venta
